@@ -1,136 +1,72 @@
 # 🤖 HBot_miniBot
 
-Repositorio del TFG (Trabajo Final de Grado) para construir un **miniBot** basado en Arduino, Raspberry Pi y ESP32.
+Final Degree Project (Bachelor’s Thesis) repository to build a **miniBot** based on Arduino, Raspberry Pi, and ESP32.
 
-Este proyecto documenta el proceso completo: desde la construcción física hasta la programación e integración de los distintos sistemas.
+This project documents the complete process: from physical construction to programming and integration of the different systems.
 
 ---
 
-# 📌 Descripción
+# 📌 Description
 
-**HBot_miniBot** es un proyecto educativo y práctico que combina:
+**HBot_miniBot** is an educational and practical project that combines:
 
--  Control de alto nivel con Arduino y ESP32
--  Uso de ROS2 con Raspberry Pi  
--  Comunicación inalámbrica del portatil a la Rasp
+- High-level control with Arduino and ESP32  
+- Use of ROS2 with Raspberry Pi  
+- Wireless communication from laptop to Raspberry Pi  
 
 ---
 
 # 🏗 Construction
 
-Esta sección describe el proceso completo de construcción del miniBot:
+This section describes the complete miniBot building process:
 
-- Diseño del chasis  
-- Montaje de motores  
-- Instalación de sensores  
-- Distribución de alimentación  
-- Integración de el hardware
+- Chassis design  
+- Motor assembly  
+- Sensor installation  
+- Power distribution  
+- Hardware integration  
 
-Aquí se incluirán imágenes, esquemas y recomendaciones de montaje.
+Images, schematics, and assembly recommendations will be included here.
 
 ---
 
 # 📦 Bill of Materials (BOM)
 
-## 🔩 Electrónica
+## 🔩 Electronics
 
-- Arduino Uno (o compatible)  
-- Raspberry Pi 5 
+- Arduino Uno (or compatible)  
+- Raspberry Pi 5  
 - ESP32  
-- Driver de motores (L293D Shield o similar)
-- Sensores, encoders y sensores de distancia
-- Batería (7.4V o similar)  
-- Protoboard y cables Dupont  
+- Motor driver (L293D Shield or similar)  
+- Sensors, encoders, and distance sensors  
+- Battery (7.4V or similar)  
+- Breadboard and Dupont wires  
 
-## ⚙ Mecánica
+## ⚙ Mechanics
 
-- Chasis para mini robot  
-- 4x Motores TT DC con ruedas
-- 1x Servo
-- Tornillería  
-- Separadores  
+- Mini robot chassis  
+- 4x TT DC motors with wheels  
+- 1x Servo  
+- Screws  
+- Spacers  
 
 ---
 
 # 🔧 Assembly
 
-Pasos generales de ensamblaje:
+General assembly steps:
 
-1. Montar los motores en el chasis  
-3. Fijar el driver de motores  
-4. Instalar Arduino, Raspberry Pi y ESP32  
-5. Conectar sensores y la resta del hardware
-6. Verificar conexiones eléctricas  
-7. Realizar pruebas de alimentación  
+1. Mount the motors onto the chassis  
+2. Attach the motor driver  
+3. Install Arduino, Raspberry Pi, and ESP32  
+4. Connect sensors and the rest of the hardware  
+5. Verify electrical connections  
+6. Perform power supply tests  
 
-⚠ Importante: comprobar polaridades antes de energizar el sistema.
+⚠ Important: Check polarities before powering the system.
 
 ---
 
 # 💻 Software
 
-Estructura del proyecto:
-
-```
-
-```
----
-
-## 🔹 Arduino Code
-
-Funciones principales:
-
-- Control de motores y de servo 
-- Comunicación serial con Raspberry Pi  
-
-### Requisitos:
-- Arduino IDE  
-
----
-
-## 🔹 Raspberry Pi Code
-
-Funciones principales:
-
-- Lógica de control principal  
-- Procesamiento de datos  
-- Comunicación con Arduino y la ESP32
-- Posible integración con visión artificial  
-
-### Requisitos:
-- Ubuntu 24.04 or Ubuntu 24.04 Server  
-- Python 3.x  
-
----
-
-## 🔹 ESP32 Code
-
-Funciones principales:
-
-
-### Requisitos:
-- Arduino IDE o PlatformIO  
-
----
-
-# 🎯 Objetivos del Proyecto
-
-- Integrar múltiples microcontroladores  
-- Implementar comunicación serial y/o inalámbrica  
-- Crear una base modular para robótica educativa  
-- Facilitar futuras ampliaciones  
-
----
-
-# 📈 Mejoras Futuras
-
-- Control vía app móvil  
-- Dashboard web  
-- Integración IoT  
-- Sistema autónomo con visión  
-
----
-
-# 👨‍💻 Autor
-
-Proyecto desarrollado por **HBot**.
+Project structure:
