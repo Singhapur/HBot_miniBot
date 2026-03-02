@@ -27,6 +27,8 @@ This section describes the complete miniBot building process:
 - Hardware integration  
 
 Images, schematics, and assembly recommendations will be included here.
+<img width="1432" height="720" alt="imagen" src="https://github.com/user-attachments/assets/cd240c71-f3e7-43e7-9cfe-b2ec52938d85" />
+
 
 ---
 
