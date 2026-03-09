@@ -29,8 +29,6 @@ This section describes the complete miniBot building process:
 Images, schematics, and assembly recommendations will be included here.
 <img width="1468" height="819" alt="imagen" src="https://github.com/user-attachments/assets/9aa0f14c-b918-4152-9eaa-226988bcd7b5" />
 
-
-
 ---
 
 # 📦 Bill of Materials (BOM)
@@ -42,7 +40,8 @@ Images, schematics, and assembly recommendations will be included here.
 - ESP32  
 - Motor driver (L293D Shield or similar)  
 - Sensors, encoders, and distance sensors  
-- Battery (7.4V or similar)  
+- Battery (7.4V or similar)
+- External power bank of 5V and 3A (for power Raspberry Pi)  
 - Breadboard and Dupont wires  
 
 ## ⚙ Mechanics
@@ -67,6 +66,18 @@ General assembly steps:
 6. Perform power supply tests  
 
 ⚠ Important: Check polarities before powering the system.
+
+## Testing model
+
+In this model we will see what the 3D model would actually look like, and also be able to start programming the functionalities.
+
+- Base without ESP32 and Arduino case
+  
+  <img src="https://github.com/user-attachments/assets/854e4cd7-0859-48c9-87d3-7aae2e97bb40" width="400">
+
+- Camera support
+
+  <img src="https://github.com/user-attachments/assets/d79d7b74-5a7f-410a-8e81-a540ed685b36" width="400">
 
 ---
 
