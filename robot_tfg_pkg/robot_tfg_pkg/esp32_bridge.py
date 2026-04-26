@@ -54,45 +54,47 @@ class Esp32Bridge(Node):
     def read_serial(self):
         if not self.ser: return
         
-        while self.ser.in_waiting > 0:
-            # Read 1 byte
-            byte_in = self.ser.read(1)[0]
+        waiting = self.ser.in_waiting
+        while waiting > 0:
+            # Read in blocks
+            chunk = self.ser.read(waiting)
             
-            # --- BINARY STATE MACHINE ---
-            if self.rx_state == 'WAIT_START':
-                if byte_in == START_BYTE: 
-                    self.rx_state = 'READ_ID'
+            for byte_in in chunk:
+                # --- BINARY STATE MACHINE ---
+                if self.rx_state == 'WAIT_START':
+                    if byte_in == START_BYTE: 
+                        self.rx_state = 'READ_ID'
+                        
+                elif self.rx_state == 'READ_ID':
+                    self.rx_id = byte_in
+                    self.rx_checksum = byte_in
+                    self.rx_state = 'READ_LEN'
                     
-            elif self.rx_state == 'READ_ID':
-                self.rx_id = byte_in
-                self.rx_checksum = byte_in
-                self.rx_state = 'READ_LEN'
-                
-            elif self.rx_state == 'READ_LEN':
-                self.rx_len = byte_in
-                self.rx_checksum ^= byte_in
-                self.rx_buffer = bytearray()
-                if self.rx_len > 40: # If length is unrealistic, discard
+                elif self.rx_state == 'READ_LEN':
+                    self.rx_len = byte_in
+                    self.rx_checksum ^= byte_in
+                    self.rx_buffer = bytearray()
+                    if self.rx_len > 40: # If length is unrealistic, discard
+                        self.rx_state = 'WAIT_START'
+                    else: 
+                        self.rx_state = 'READ_DATA'
+                        
+                elif self.rx_state == 'READ_DATA':
+                    self.rx_buffer.append(byte_in)
+                    self.rx_checksum ^= byte_in
+                    if len(self.rx_buffer) >= self.rx_len: 
+                        self.rx_state = 'READ_CHK'
+                        
+                elif self.rx_state == 'READ_CHK':
+                    if byte_in == self.rx_checksum: 
+                        self.rx_state = 'WAIT_END'
+                    else: 
+                        self.rx_state = 'WAIT_START' # Checksum failed
+                        
+                elif self.rx_state == 'WAIT_END':
+                    if byte_in == END_BYTE: 
+                        self.process_packet(self.rx_id, self.rx_buffer)
                     self.rx_state = 'WAIT_START'
-                else: 
-                    self.rx_state = 'READ_DATA'
-                    
-            elif self.rx_state == 'READ_DATA':
-                self.rx_buffer.append(byte_in)
-                self.rx_checksum ^= byte_in
-                if len(self.rx_buffer) >= self.rx_len: 
-                    self.rx_state = 'READ_CHK'
-                    
-            elif self.rx_state == 'READ_CHK':
-                if byte_in == self.rx_checksum: 
-                    self.rx_state = 'WAIT_END'
-                else: 
-                    self.rx_state = 'WAIT_START' # Checksum failed
-                    
-            elif self.rx_state == 'WAIT_END':
-                if byte_in == END_BYTE: 
-                    self.process_packet(self.rx_id, self.rx_buffer)
-                self.rx_state = 'WAIT_START'
 
     def process_packet(self, packet_id, data):
         now = self.get_clock().now()

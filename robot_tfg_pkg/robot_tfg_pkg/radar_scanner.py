@@ -27,7 +27,7 @@ class RadarScanner(Node):
         self.is_scanning = False
         self.current_angle = 0
         self.direction = 1       # 1 for forward (0->180), -1 for backward (180->0)
-        self.step = 2  # Degrees to advance in each step
+        self.step = 10  # Degrees to advance in each step
         self.last_distance = 0.0
         
         # Buffer to store points and publish every 5 measurements
