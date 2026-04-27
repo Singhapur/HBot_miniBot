@@ -71,8 +71,8 @@ class CameraReader(Node):
                     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
 
             # 4. Show result
-            cv2.imshow("Vision Processing", frame)
-            cv2.waitKey(1)
+            #cv2.imshow("Vision Processing", frame)
+            #cv2.waitKey(1)
             
             # Publish processed image to view it on another PC
             out_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')

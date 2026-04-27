@@ -27,7 +27,7 @@ class RadarScanner(Node):
         self.is_scanning = False
         self.current_angle = 0
         self.direction = 1       # 1 for forward (0->180), -1 for backward (180->0)
-        self.step = 10  # Degrees to advance in each step
+        self.step = 5  # Degrees to advance in each step
         self.last_distance = 0.0
         
         # Buffer to store points and publish every 5 measurements
@@ -84,16 +84,15 @@ class RadarScanner(Node):
         self.last_distance = -1.0
 
         # Only process valid measurements
-        if r != float('inf') and 0.0 < r < 8.0:
+        if r != float('inf') and 0.0 < r < 4.0:
             x = r * math.cos(ros_angle_rad)
             y = r * math.sin(ros_angle_rad)
             z = 0.0 
             self.points_buffer.append([x, y, z])
-
-        # 4. PUBLISH CHUNK: If we have 5 points, send them to RViz/OctoMap
-        if len(self.points_buffer) >= 5:
-            self.publish_pointcloud(self.points_buffer)
-            self.points_buffer = []  # Reset buffer
+            # 4. PUBLISH CHUNK: If we have 5 points, send them to RViz/OctoMap
+            if len(self.points_buffer) >= 5:
+                self.publish_pointcloud(self.points_buffer)
+                self.points_buffer = []  # Reset buffer
 
         # 5. Advance to the next angle
         self.current_angle += (self.step * self.direction)

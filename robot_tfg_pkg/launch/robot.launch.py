@@ -86,9 +86,9 @@ def generate_launch_description():
         # descomenta las líneas de abajo:
         # ,
         # Node(
-        #     package='mi_camera_pkg',
-        #     executable='ver_camera',
-        #     name='camara_mediapipe',
+        #     package='robot_tfg_pkg',
+        #     executable='camera_reader',
+        #     name='camera_mediapipe',
         #     output='screen'
         # )
     ])

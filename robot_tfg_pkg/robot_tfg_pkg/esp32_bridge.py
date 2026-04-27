@@ -112,7 +112,7 @@ class Esp32Bridge(Node):
             msg_range.header.frame_id = "tf_luna_link"
             msg_range.radiation_type = Range.INFRARED
             msg_range.min_range = 0.0
-            msg_range.max_range = 8.0
+            msg_range.max_range = 4.0
             msg_range.range = distance_m
             
             self.pub_lidar.publish(msg_range)

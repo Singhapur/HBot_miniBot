@@ -75,7 +75,7 @@ class ControllerNode(Node):
             if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
         else:
             # Turning requires more power, so PWM is set to 130
-            MIN_PWM = 110
+            MIN_PWM = 130
             if pwm_l > 0 and pwm_l < MIN_PWM: pwm_l = MIN_PWM
             if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
 
