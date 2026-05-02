@@ -2,71 +2,67 @@ import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 from std_msgs.msg import Int32, Header
-from sensor_msgs.msg import Range, LaserScan, PointCloud2
+from sensor_msgs.msg import Range, PointCloud2
 from sensor_msgs_py import point_cloud2
 from rclpy.duration import Duration
 import math
 
 class RadarScanner(Node):
     def __init__(self):
-        super().__init__('smart_radar')
+        super().__init__('radar_scanner')
         
-        # 1. SERVICE: When called, self.start_scan_callback will execute
-        self.srv = self.create_service(Trigger, '/get_scan', self.toggle_scan_callback)
+        # 1. SERVICE: Triggers a single high-precision scan
+        self.srv = self.create_service(Trigger, '/trigger_scan', self.trigger_scan_callback)
         
-        # 2. PUBLISHER TO ARDUINO (To move the servo)
+        # 2. PUBLISHER TO ARDUINO (Move servo)
         self.pub_servo = self.create_publisher(Int32, '/set_lidar_angle', 10)
         
-        # 3. SUBSCRIBER TO ESP32 (To read the laser)
+        # 3. SUBSCRIBER TO ESP32 (Read laser)
         self.sub_lidar = self.create_subscription(Range, '/sensor_distancia', self.distance_callback, 10)
         
-        # 4. PUBLISHER FOR POINT CLOUD
+        # 4. POINT CLOUD PUBLISHER
         self.pub_pc2 = self.create_publisher(PointCloud2, '/cloud_in', 10)
 
-        # Scanning state variables
+        # State variables
         self.is_scanning = False
         self.current_angle = 0
-        self.direction = 1       # 1 for forward (0->180), -1 for backward (180->0)
-        self.step = 5  # Degrees to advance in each step
-        self.last_distance = 0.0
-        
-        # Buffer to store points and publish every 5 measurements
+        self.step = 1  # 1 degree step for MAXIMUM resolution
+        self.last_distance = -1.0
         self.points_buffer = []
 
-        # Timer that runs the radar state machine
-        self.timer = self.create_timer(0.05, self.scan_loop)
+        # Radar loop at 20Hz (0.05 seconds).
+        self.timer = self.create_timer(0.05, self.scan_step)
 
-        self.get_logger().info('Continuous Radar ready. Call /get_scan to TOGGLE ON/OFF.')
+        # Center the servo on startup
+        self.center_servo()
+        self.get_logger().info('Live Precision Radar ready. Call /trigger_scan to start.')
+
+    def center_servo(self):
+        msg = Int32()
+        msg.data = 90
+        self.pub_servo.publish(msg)
 
     def distance_callback(self, msg):
-        # Save the latest distance read from the ESP32
         self.last_distance = msg.range
 
-    def toggle_scan_callback(self, request, response):
-        # Toggle the scanning state (Turn ON if OFF, Turn OFF if ON)
-        self.is_scanning = not self.is_scanning
+    def trigger_scan_callback(self, request, response):
         if self.is_scanning:
-            self.get_logger().info('Radar STARTED: Continuous scanning mode.')
-            response.message = "Radar Started."
-        else:
-            self.get_logger().info('Radar STOPPED.')
-            response.message = "Radar Stopped."
-            
-            # Return the servo to the center position when stopped
-            msg_servo = Int32()
-            msg_servo.data = 90
-            self.pub_servo.publish(msg_servo)
-            
-            # Flush any remaining points in the buffer
-            if self.points_buffer:
-                self.publish_pointcloud(self.points_buffer)
-                self.points_buffer = []
+            response.success = False
+            response.message = "Radar is already scanning. Please wait for it to finish."
+            return response
 
+        # Start the photographic sweep
+        self.is_scanning = True
+        self.current_angle = 0
+        self.points_buffer = []
+        self.get_logger().info('Starting live precision sweep (0 to 180 degrees)...')
+        
         response.success = True
+        response.message = "Precision scan started."
         return response
 
-    def scan_loop(self):
-        # If we are not scanning, do nothing
+    def scan_step(self):
+        # If we haven't been asked to scan, do nothing
         if not self.is_scanning:
             return
 
@@ -75,50 +71,51 @@ class RadarScanner(Node):
         msg_servo.data = self.current_angle
         self.pub_servo.publish(msg_servo)
         
-        # 2. Convert Servo Angle (0 to 180) to ROS Angle (-90 to +90 degrees)
-        ros_angle_rad = math.radians(self.current_angle - 90)
-
-        # 3. Read distance and convert polar to Cartesian (X, Y)
+        # 2. Read the distance
         r = self.last_distance
-        # Solution for the ghost measurements 
-        self.last_distance = -1.0
+        self.last_distance = -1.0 # Consume the data
 
-        # Only process valid measurements
-        if r != float('inf') and 0.0 < r < 4.0:
+        # 3. Save the point (Maximum 4 meters)
+        if r != float('inf') and 0.0 < r <= 4.0:
+            ros_angle_rad = math.radians(self.current_angle - 90)
             x = r * math.cos(ros_angle_rad)
             y = r * math.sin(ros_angle_rad)
             z = 0.0 
             self.points_buffer.append([x, y, z])
-            # 4. PUBLISH CHUNK: If we have 5 points, send them to RViz/OctoMap
-            if len(self.points_buffer) >= 5:
-                self.publish_pointcloud(self.points_buffer)
-                self.points_buffer = []  # Reset buffer
 
-        # 5. Advance to the next angle
-        self.current_angle += (self.step * self.direction)
+        # --- THE UPGRADE: CHUNKED SENDING ---
+        # If we have accumulated 5 points, publish them immediately to see them in RViz
+        if len(self.points_buffer) >= 5:
+            self.publish_pointcloud(self.points_buffer)
+            self.points_buffer = []  # Empty the buffer for the next 5 points
 
-        # 6. PING-PONG LOGIC: Bounce at the edges
-        if self.current_angle >= 180:
-            self.current_angle = 180
-            self.direction = -1  # Reverse direction
+        # 4. Advance the angle
+        self.current_angle += self.step
+
+        # 5. Have we finished the 180-degree sweep?
+        if self.current_angle > 180:
+            self.is_scanning = False
             
-        elif self.current_angle <= 0:
-            self.current_angle = 0
-            self.direction = 1   # Forward direction
+            # Final cleanup: If there are leftover points in the buffer (e.g., only 2 or 3 points left)
+            if len(self.points_buffer) > 0:
+                self.publish_pointcloud(self.points_buffer)
+                self.points_buffer = []
+            
+            # Stow the laser again
+            self.center_servo()
+            self.get_logger().info('Scan finished. Waiting for new command.')
 
     def publish_pointcloud(self, points):
-        # --- TIME TRICK (Avoid extrapolation into the future) ---
+        # If the list is empty, publish nothing
+        if not points:
+            return
+            
         safe_time = (self.get_clock().now() - Duration(seconds=0.1)).to_msg()
-        
-        # Create header matching scan time and lidar frame
         header = Header()
         header.stamp = safe_time
         header.frame_id = 'tf_luna_link'
         
-        # Package point cloud using official ROS 2 library
         pc2_msg = point_cloud2.create_cloud_xyz32(header, points)
-        
-        # Publish to OctoMap
         self.pub_pc2.publish(pc2_msg)
 
 def main(args=None):
