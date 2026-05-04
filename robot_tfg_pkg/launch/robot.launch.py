@@ -79,16 +79,18 @@ def generate_launch_description():
             executable='robot_state_publisher',
             name='robot_state_publisher',
             parameters=[{'robot_description': robot_description_content}]
-        )
-        
-        
-        # Nota: Si también quieres arrancar la cámara a la vez, 
-        # descomenta las líneas de abajo:
-        # ,
-        # Node(
-        #     package='robot_tfg_pkg',
-        #     executable='camera_reader',
-        #     name='camera_mediapipe',
-        #     output='screen'
-        # )
+        ),
+        Node(
+             package='usb_cam',
+             executable='usb_cam_node_exe',
+             name='usb_cam_node_exe',
+         
+         )
+         #,
+         #Node(
+          #   package='robot_tfg_pkg',
+          #   executable='camera_reader',
+          #   name='camera_mediapipe',
+         #)
+
     ])
