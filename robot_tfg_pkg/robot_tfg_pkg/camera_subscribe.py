@@ -1,8 +1,8 @@
 import cv2
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage
+import numpy as np
 
 
 class CameraSubscriber(Node):
@@ -10,12 +10,11 @@ class CameraSubscriber(Node):
         super().__init__('camera_subscriber_node')
         
         # 1. Publishers: Send results to the rest of the robot
-        self.subscription = self.create_subscription(Image, '/image_publish_raw', self.listener_callback, 20)
-        
-        self.bridge = CvBridge()
+        self.subscription = self.create_subscription(CompressedImage, '/image_publish_compressed', self.listener_callback, 10)
         
     def listener_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg)
+        np_arr = np.frombuffer(msg.data, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         
         cv2.imshow("Camera", frame)
         cv2.waitKey(1)

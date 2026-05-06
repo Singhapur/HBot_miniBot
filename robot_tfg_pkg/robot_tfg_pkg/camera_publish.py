@@ -1,8 +1,8 @@
 import cv2
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage
+import numpy as np
 
 
 class CameraPublisher(Node):
@@ -14,24 +14,31 @@ class CameraPublisher(Node):
         self.camera = cv2.VideoCapture(self.cameraId)
         
         # 2. Publishers: Send results to the rest of the robot
-        self.publisher_img = self.create_publisher(Image, '/image_publish_raw', 20)
-        
-        self.bridge = CvBridge()
+        self.publisher_img = self.create_publisher(CompressedImage, '/image_publish_compressed', 10)
         
         # Communication period
-        self.periodCommunication = 0.01
+        self.periodCommunication = 0.05
         
         # Very fast read timer to prevent losing bytes
         self.timer = self.create_timer(self.periodCommunication, self.timer_callbackFunction)
         
     def timer_callbackFunction(self):
         ret, frame = self.camera.read()
+        if not ret:
+            self.get_logger().warning("Failed to capture image")
+            return
         target_width = 256
         target_height = 256
         frame = cv2.resize(frame, (target_width, target_height))
+        
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]
+        result, encimg = cv2.imencode('.jpg', frame, encode_param)
 
-        if ret:
-            msg = self.bridge.cv2_to_imgmsg(frame)
+        if result:
+            msg = CompressedImage()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.format = "jpeg"
+            msg.data = np.array(encimg).tobytes()
             self.publisher_img.publish(msg)
         else:
             self.get_logger().warning("Failed to capture image")
