@@ -1,23 +1,24 @@
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+import rclpy
+import numpy as np
 import mediapipe as mp
+from rclpy.node import Node
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
 from mediapipe.tasks import python
+from sensor_msgs.msg import CompressedImage
+
 
 class CameraReader(Node):
     def __init__(self):
         super().__init__('vision_processing_node')
         
         # 1. Subscriber: Receives the camera image
-        self.subscription = self.create_subscription(Image, '/image_raw', self.listener_callback, 5)
+        self.subscription = self.create_subscription(CompressedImage, '/image_compressed_raw', self.listener_callback, 10)
         
         # 2. Publishers: Send results to the rest of the robot
-        self.publisher_img = self.create_publisher(Image, '/image_processed', 5)
+        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_processed', 10)
         
-        self.bridge = CvBridge()
-
         # 3. MediaPipe configuration
         models_path = "/home/hp/ros2_tfg/models/"
         
@@ -30,21 +31,17 @@ class CameraReader(Node):
         pose_options = PoseLandmarkerOptions(
             base_options=BaseOptions,
             running_mode=VisionRunningMode.VIDEO,
-            num_poses=2
+            num_poses=5
         )
         self.pose_landmarker = PoseLandmarker.create_from_options(pose_options)
 
     # --- MAIN LOOP (Callback) ---
     def listener_callback(self, msg):
         try:
-            # 1. Convert ROS Image to OpenCV
-            frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-            frame = cv2.flip(frame, 1)
-            
-            # Reduce image size for MediaPipe processing
-            target_width = 256
-            target_height = 256
-            frame = cv2.resize(frame, (target_width, target_height))
+            # 1. Convert ROS Compress Image to OpenCV
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            #frame = cv2.flip(frame, 1)
 
             # 2. Prepare image for MediaPipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -71,12 +68,23 @@ class CameraReader(Node):
                     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
 
             # 4. Show result
-            #cv2.imshow("Vision Processing", frame)
-            #cv2.waitKey(1)
+            cv2.imshow("Vision Processing", frame)
+            cv2.waitKey(1)
             
-            # Publish processed image to view it on another PC
-            out_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
-            self.publisher_img.publish(out_msg)
+            # Publish processed image to view it on another PC if it's necessary 
+            target_width = 256
+            target_height = 256
+            frame = cv2.resize(frame, (target_width, target_height))
+            
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]
+            result, encimg = cv2.imencode('.jpg', frame, encode_param)
+
+            if result:
+                msg = CompressedImage()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.format = "jpeg"
+                msg.data = np.array(encimg).tobytes()
+                self.publisher_img.publish(msg)
 
         except Exception as e:
             self.get_logger().error(f'Error processing image: {e}')

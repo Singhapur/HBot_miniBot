@@ -12,9 +12,17 @@ class CameraPublisher(Node):
         # 1. Declare the camera params
         self.cameraId = 0 # Id or Number of the camera
         self.camera = cv2.VideoCapture(self.cameraId)
+        # Check if the camera is connected correctly 
+        ret, frame = self.camera.read()
+        while not ret:
+            try:
+                self.camera = cv2.VideoCapture(self.cameraId)
+                ret, frame = self.camera.read()
+            except Exception as e:
+                self.get_logger().error(f'Camera not detected')
         
-        # 2. Publishers: Send results to the rest of the robot
-        self.publisher_img = self.create_publisher(CompressedImage, '/image_publish_compressed', 10)
+        # 2. Publishers: Send results to the rest of the robot of compressed image
+        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_raw', 10)
         
         # Communication period
         self.periodCommunication = 0.05
@@ -24,6 +32,7 @@ class CameraPublisher(Node):
         
     def timer_callbackFunction(self):
         ret, frame = self.camera.read()
+        # if the camera is on, we go on, else return nothing
         if not ret:
             self.get_logger().warning("Failed to capture image")
             return
