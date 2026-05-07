@@ -1,8 +1,8 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import JointState, Imu
 from std_msgs.msg import Int16MultiArray
+from sensor_msgs.msg import JointState, Imu
 
 class ControllerNode(Node):
     def __init__(self):
@@ -10,9 +10,13 @@ class ControllerNode(Node):
         
         self.use_imu = True
         
+        # Subscriptions
         self.sub_cmd_vel = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
         self.sub_joints = self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
         self.sub_imu = self.create_subscription(Imu, '/imu/data_raw', self.imu_callback, 10)
+        self.sub_lidar = self.create_subscription(Range, '/sensor_distancia', self.distance_callback, 10)
+        
+        # Publisher
         self.pub_pwm = self.create_publisher(Int16MultiArray, '/pwm_setpoints', 10)
         
         # Physical parameters
@@ -31,6 +35,7 @@ class ControllerNode(Node):
         self.last_cmd_time = self.get_clock().now()
         self.last_pwm_left = 0
         self.last_pwm_right = 0
+        self.current_distance = 100.0 # Meter
         
         # Memory for the Integral term
         self.error_fwd = 0.0
@@ -45,6 +50,10 @@ class ControllerNode(Node):
         
         self.get_logger().info('Trajectory PID Controller Started')
         
+    def distance_callback(self, msg):
+        self.current_distance = msg.range
+    
+        
     def imu_callback(self, msg):
         # angular_velocity.z indicates rotation speed in rad/s
         self.imu_yaw_rate = msg.angular_velocity.z
@@ -54,6 +63,11 @@ class ControllerNode(Node):
         v = msg.linear.x
         w = msg.angular.z
         turn_factor = 1
+        
+        # Add safety filter for stopping on 5cm off an object
+        if self.current_distance <= 0.005 and v > 0:
+            v = 0.0
+            w = 0.0
 
         # Do we want to go in a straight line?
         if abs(v) > 0.01 and abs(w) < 0.01:

@@ -1,11 +1,11 @@
+import math
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
-from std_msgs.msg import Int32, Header
-from sensor_msgs.msg import Range, PointCloud2
-from sensor_msgs_py import point_cloud2
 from rclpy.duration import Duration
-import math
+from std_msgs.msg import Int32, Header
+from sensor_msgs_py import point_cloud2
+from sensor_msgs.msg import Range, PointCloud2
 
 class RadarScanner(Node):
     def __init__(self):

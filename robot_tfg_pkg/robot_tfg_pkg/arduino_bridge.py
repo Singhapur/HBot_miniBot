@@ -1,9 +1,9 @@
+import math
 import rclpy
+import serial
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Int32, Int16MultiArray
-import serial
-import math
 
 # --- BINARY PROTOCOL CONSTANTS ---
 START_BYTE = 0xAA

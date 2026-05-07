@@ -1,9 +1,8 @@
 import cv2
 import rclpy
+import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
-import numpy as np
-
 
 class CameraPublisher(Node):
     def __init__(self):

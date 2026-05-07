@@ -1,9 +1,9 @@
+import math
 import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Range, Imu, MagneticField
 import serial
 import struct
-import math
+from rclpy.node import Node
+from sensor_msgs.msg import Range, Imu, MagneticField
 
 # --- BINARY PROTOCOL CONSTANTS ---
 START_BYTE = 0xAA

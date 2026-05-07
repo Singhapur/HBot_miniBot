@@ -8,7 +8,6 @@ from sensor_msgs.msg import Image
 from mediapipe.tasks import python
 from sensor_msgs.msg import CompressedImage
 
-
 class CameraReader(Node):
     def __init__(self):
         super().__init__('vision_processing_node')
