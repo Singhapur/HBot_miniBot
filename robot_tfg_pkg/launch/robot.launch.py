@@ -81,10 +81,9 @@ def generate_launch_description():
             parameters=[{'robot_description': robot_description_content}]
         ),
         Node(
-             package='usb_cam',
-             executable='usb_cam_node_exe',
-             name='usb_cam_node_exe',
-         
+             package='robot_tfg_pkg',
+             executable='camera_publish',
+             name='camera_publish_node',
          )
          #,
          #Node(
