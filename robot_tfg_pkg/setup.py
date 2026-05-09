@@ -35,6 +35,8 @@ setup(
 		'odometria = robot_tfg_pkg.odometria_node:main',
         'radar_scanner = robot_tfg_pkg.radar_scanner:main',
         'high_level_controller = robot_tfg_pkg.high_level_controller:main',
+        'camera_publish = robot_tfg_pkg.camera_publish:main',
+        'camera_subscribe = robot_tfg_pkg.camera_subscribe:main',
         ],
     },
 )

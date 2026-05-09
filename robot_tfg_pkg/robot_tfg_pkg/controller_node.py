@@ -3,6 +3,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16MultiArray
 from sensor_msgs.msg import JointState, Imu
+from sensor_msgs.msg import Range
 
 class ControllerNode(Node):
     def __init__(self):
@@ -36,6 +37,7 @@ class ControllerNode(Node):
         self.last_pwm_left = 0
         self.last_pwm_right = 0
         self.current_distance = 100.0 # Meter
+        self.min_distance = 0.05 # cm
         
         # Memory for the Integral term
         self.error_fwd = 0.0
@@ -52,8 +54,7 @@ class ControllerNode(Node):
         
     def distance_callback(self, msg):
         self.current_distance = msg.range
-    
-        
+       
     def imu_callback(self, msg):
         # angular_velocity.z indicates rotation speed in rad/s
         self.imu_yaw_rate = msg.angular_velocity.z
@@ -64,11 +65,6 @@ class ControllerNode(Node):
         w = msg.angular.z
         turn_factor = 1
         
-        # Add safety filter for stopping on 5cm off an object
-        if self.current_distance <= 0.005 and v > 0:
-            v = 0.0
-            w = 0.0
-
         # Do we want to go in a straight line?
         if abs(v) > 0.01 and abs(w) < 0.01:
             self.straight_line_mode = True
@@ -84,12 +80,12 @@ class ControllerNode(Node):
 
         # Deadband compensation
         if self.straight_line_mode:      
-            MIN_PWM = 100
+            MIN_PWM = 110
             if pwm_l > 0 and pwm_l < MIN_PWM: pwm_l = MIN_PWM
             if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
         else:
             # Turning requires more power, so PWM is set to 130
-            MIN_PWM = 130
+            MIN_PWM = 135
             if pwm_l > 0 and pwm_l < MIN_PWM: pwm_l = MIN_PWM
             if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
 
@@ -152,7 +148,7 @@ class ControllerNode(Node):
         time_since_last_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
         
         # Watchdog: Stop robot if no command received in 0.2s
-        if time_since_last_cmd > 0.2:
+        if time_since_last_cmd > 0.2 or self.current_distance <= self.min_distance:
             self.base_pwm_left = 0
             self.base_pwm_right = 0
             self.dir_left = 2  # Release
