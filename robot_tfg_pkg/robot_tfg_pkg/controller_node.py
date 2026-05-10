@@ -37,7 +37,7 @@ class ControllerNode(Node):
         self.last_pwm_left = 0
         self.last_pwm_right = 0
         self.current_distance = 100.0 # Meter
-        self.min_distance = 0.05 # cm
+        self.min_distance = 0.15 # M
         
         # Memory for the Integral term
         self.error_fwd = 0.0
