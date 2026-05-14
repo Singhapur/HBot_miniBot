@@ -17,9 +17,14 @@ class CameraReader(Node):
         
         # 2. Publishers: Send results to the rest of the robot
         self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_processed', 10)
+        self.publisher_servo = self.create_publisher(Int32, '/set_camera_angle', 10)
         
         # 3. MediaPipe configuration
         models_path = "/home/hp/ros2_tfg/models/"
+
+        # Servo state
+        self.current_servo_angle = 90
+        self.last_servo_send_time = self.get_clock().now()
         
         BaseOptions = python.BaseOptions(model_asset_path=models_path + "pose_landmarker_lite.task")
         VisionRunningMode = mp.tasks.vision.RunningMode
@@ -30,7 +35,7 @@ class CameraReader(Node):
         pose_options = PoseLandmarkerOptions(
             base_options=BaseOptions,
             running_mode=VisionRunningMode.VIDEO,
-            num_poses=5
+            num_poses=1
         )
         self.pose_landmarker = PoseLandmarker.create_from_options(pose_options)
 
@@ -58,6 +63,27 @@ class CameraReader(Node):
 
                     x_min, x_max = min(xs), max(xs)
                     y_min, y_max = min(ys), max(ys)
+
+                    # Folow a person
+                    person_center_x = (x_min + x_max) / 2
+                    image_center_x = 128 # Half of 256
+                    error_x = image_center_x - person_center_x
+
+                    if abs(error_x) > 15:
+                        # If the error is positive, the person is on the left -> we increase angle
+                        # If the error is negative, it’s on the right -> we decrease angle
+                        step = 2 # Grados a mover por cada frame
+                        if error_x > 0:
+                            self.current_servo_angle += step
+                        else:
+                            self.current_servo_angle -= step
+
+                        self.current_servo_angle = max(0, min(180, self.current_servo_angle))
+
+                        # Publish new angle
+                        servo_msg = Int32()
+                        servo_msg.data = int(self.current_servo_angle)
+                        self.publisher_servo.publish(servo_msg)
 
                     # --- MARGIN CORRECTION ---
                     margin = 20
