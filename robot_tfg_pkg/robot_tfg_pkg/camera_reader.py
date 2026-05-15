@@ -4,6 +4,7 @@ import numpy as np
 import mediapipe as mp
 from rclpy.node import Node
 from cv_bridge import CvBridge
+from std_msgs.msg import Int32
 from sensor_msgs.msg import Image
 from mediapipe.tasks import python
 from sensor_msgs.msg import CompressedImage
