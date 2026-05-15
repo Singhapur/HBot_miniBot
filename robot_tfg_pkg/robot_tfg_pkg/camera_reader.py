@@ -70,7 +70,7 @@ class CameraReader(Node):
                     image_center_x = 128 # Half of 256
                     error_x = image_center_x - person_center_x
 
-                    if abs(error_x) > 15:
+                    if abs(error_x) > 20:
                         # If the error is positive, the person is on the left -> we increase angle
                         # If the error is negative, it’s on the right -> we decrease angle
                         step = 2 # Grados a mover por cada frame
