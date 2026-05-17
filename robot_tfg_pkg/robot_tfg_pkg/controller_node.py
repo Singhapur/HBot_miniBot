@@ -23,9 +23,21 @@ class ControllerNode(Node):
         # Physical parameters
         self.wheelbase = 0.145
         self.max_speed_ms = 0.5
+
+        # Smooth acceleration
+        self.target_v = 0.0
+        self.target_w = 0.0
+        self.current_v = 0.0
+        self.current_w = 0.0
+        # Smooth acceleration variables 
+        self.max_accel_v = 0.8 # m/s
+        self.max_accel_w = 2.0 # rads/s
+        self.dt = 0.1 # timer runs at 0.1 segundos
         
-        # IMU variables
-        self.imu_yaw_rate = 0.0  
+        # IMU variables & sensor variables
+        self.imu_yaw_rate = 0.0
+        self.current_distance = 100.0 # Meter
+        self.min_distance = 0.15 # M  
         
         # State variables
         self.base_pwm_left = 0
@@ -36,8 +48,7 @@ class ControllerNode(Node):
         self.last_cmd_time = self.get_clock().now()
         self.last_pwm_left = 0
         self.last_pwm_right = 0
-        self.current_distance = 100.0 # Meter
-        self.min_distance = 0.15 # M
+        
         
         # Memory for the Integral term
         self.error_fwd = 0.0
@@ -58,49 +69,6 @@ class ControllerNode(Node):
     def imu_callback(self, msg):
         # angular_velocity.z indicates rotation speed in rad/s
         self.imu_yaw_rate = msg.angular_velocity.z
-
-    def cmd_vel_callback(self, msg):
-        self.last_cmd_time = self.get_clock().now()
-        v = msg.linear.x
-        w = msg.angular.z
-        turn_factor = 1
-        
-        # Do we want to go in a straight line?
-        if abs(v) > 0.01 and abs(w) < 0.01:
-            self.straight_line_mode = True
-        else:
-            self.straight_line_mode = False
-            turn_factor = 1.0
-         
-        v_left = v - (w * turn_factor * self.wheelbase / 2.0)
-        v_right = v + (w * turn_factor * self.wheelbase / 2.0)
-
-        pwm_l = int(abs(v_left) * (255.0 / self.max_speed_ms))
-        pwm_r = int(abs(v_right) * (255.0 / self.max_speed_ms))
-
-        # Deadband compensation
-        if self.straight_line_mode:      
-            MIN_PWM = 110
-            if pwm_l > 0 and pwm_l < MIN_PWM: pwm_l = MIN_PWM
-            if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
-        else:
-            # Turning requires more power, so PWM is set to 130
-            MIN_PWM = 135
-            if pwm_l > 0 and pwm_l < MIN_PWM: pwm_l = MIN_PWM
-            if pwm_r > 0 and pwm_r < MIN_PWM: pwm_r = MIN_PWM
-
-        # Save the BASE from the kinematic calculation
-        self.base_pwm_left = min(255, pwm_l)
-        self.base_pwm_right = min(255, pwm_r)
-
-        # Directions
-        if v_left > 0.01: self.dir_left = 1
-        elif v_left < -0.01: self.dir_left = 0
-        else: self.dir_left = 2
-
-        if v_right > 0.01: self.dir_right = 1
-        elif v_right < -0.01: self.dir_right = 0
-        else: self.dir_right = 2
 
     def joint_callback(self, msg):
         # Apply PID if going in a straight line
@@ -144,11 +112,88 @@ class ControllerNode(Node):
             self.base_pwm_right = max(95, min(255, self.base_pwm_right))
             self.last_pwm_right = self.base_pwm_right
 
-    def publish_pwm(self):
-        time_since_last_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
+    def cmd_vel_callback(self, msg):
+        self.last_cmd_time = self.get_clock().now()
+        v = msg.linear.x
+        w = msg.angular.z
+        self.target_v = msg.linear.x
+        self.target_w = msg.angular.z
+
+        if self.current_distance <= self.min_distance and self.target_v > 0:
+            self.target_v = 0.0
+            self.target_w = 0.0
+            self.current_v = 0.0
+            self.current_w = 0.0
+
+    def assign_vel(self):
+        # Smooth acceleration logic
+        # Calculamos la diferencia entre lo que queremos y lo que tenemos
+        dv = self.target_v - self.current_v
+        dw = self.target_w - self.current_w
         
+        # Cuánto podemos cambiar como máximo en este ciclo (0.1s)
+        max_step_v = self.max_accel_v * self.dt
+        max_step_w = self.max_accel_w * self.dt
+        
+        # Aplicar rampa lineal
+        if abs(dv) > max_step_v:
+            self.current_v += max_step_v if dv > 0 else -max_step_v
+        else:
+            self.current_v = self.target_v
+            
+        # Aplicar rampa angular
+        if abs(dw) > max_step_w:
+            self.current_w += max_step_w if dw > 0 else -max_step_w
+        else:
+            self.current_w = self.target_w
+
+
+        # 3. Set speed
+        v = self.current_v
+        w = self.current_w
+
+        # Straight line
+        if abs(v) > 0.01 and abs(w) < 0.01:
+            self.straight_line_mode = True
+        else:
+            self.straight_line_mode = False
+
+        turn_factor = 1.0
+
+        v_left = v - (w * turn_factor * self.wheelbase / 2.0)
+        v_right = v + (w * turn_factor * self.wheelbase / 2.0)
+
+        pwm_l = int(abs(v_left) * (255.0 / self.max_speed_ms))
+        pwm_r = int(abs(v_right) * (255.0 / self.max_speed_ms))
+
+        # Deadband compensation
+        MIN_PWM_STRAIGHT = 110
+        MIN_PWM_TURN = 135
+        
+        if self.straight_line_mode:      
+            if 0 < pwm_l < MIN_PWM_STRAIGHT: pwm_l = MIN_PWM_STRAIGHT
+            if 0 < pwm_r < MIN_PWM_STRAIGHT: pwm_r = MIN_PWM_STRAIGHT
+        else:
+            if 0 < pwm_l < MIN_PWM_TURN: pwm_l = MIN_PWM_TURN
+            if 0 < pwm_r < MIN_PWM_TURN: pwm_r = MIN_PWM_TURN
+
+        # Save the BASE from the kinematic calculation
+        self.base_pwm_left = min(255, pwm_l)
+        self.base_pwm_right = min(255, pwm_r)
+
+        # Directions
+        if v_left > 0.01: self.dir_left = 1
+        elif v_left < -0.01: self.dir_left = 0
+        else: self.dir_left = 2
+
+        if v_right > 0.01: self.dir_right = 1
+        elif v_right < -0.01: self.dir_right = 0
+        else: self.dir_right = 2
+
+    def publish_pwm(self):
+        time_since_last_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9       
         # Watchdog: Stop robot if no command received in 0.2s
-        if time_since_last_cmd > 0.2 or self.current_distance <= self.min_distance:
+        if time_since_last_cmd > 0.2:
             self.base_pwm_left = 0
             self.base_pwm_right = 0
             self.dir_left = 2  # Release
@@ -156,7 +201,8 @@ class ControllerNode(Node):
             self.straight_line_mode = False
             self.error_fwd = 0.0
             self.error_bwd = 0.0
-            
+
+        assign_vel() 
         # Convert absolute values to signed values (positive/negative)
         val_left = self.base_pwm_left if self.dir_left == 1 else -self.base_pwm_left
         if self.dir_left == 2: val_left = 0
