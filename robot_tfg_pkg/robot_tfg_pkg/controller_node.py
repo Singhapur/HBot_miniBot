@@ -201,6 +201,10 @@ class ControllerNode(Node):
             self.straight_line_mode = False
             self.error_fwd = 0.0
             self.error_bwd = 0.0
+            # New target for smooth stop
+            self.target_v = 0.0
+            self.target_w = 0.0
+
 
         self.assign_vel() 
         # Convert absolute values to signed values (positive/negative)
