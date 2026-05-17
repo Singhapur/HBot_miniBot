@@ -202,7 +202,7 @@ class ControllerNode(Node):
             self.error_fwd = 0.0
             self.error_bwd = 0.0
 
-        assign_vel() 
+        self.assign_vel() 
         # Convert absolute values to signed values (positive/negative)
         val_left = self.base_pwm_left if self.dir_left == 1 else -self.base_pwm_left
         if self.dir_left == 2: val_left = 0
