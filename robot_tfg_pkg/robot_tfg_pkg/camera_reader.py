@@ -26,6 +26,7 @@ class CameraReader(Node):
         # Servo state
         self.current_servo_angle = 90
         self.last_servo_send_time = self.get_clock().now()
+        self.move_step = 2
         
         BaseOptions = python.BaseOptions(model_asset_path=models_path + "pose_landmarker_lite.task")
         VisionRunningMode = mp.tasks.vision.RunningMode
@@ -56,6 +57,8 @@ class CameraReader(Node):
 
             # 3. Detect Pose
             pose_result = self.pose_landmarker.detect_for_video(mp_image, timestamp_ms)
+
+            step = self.move_step # Grados a mover por cada frame
             
             if pose_result.pose_landmarks:
                 for landmarks in pose_result.pose_landmarks:
@@ -73,7 +76,7 @@ class CameraReader(Node):
                     if abs(error_x) > 20:
                         # If the error is positive, the person is on the left -> we increase angle
                         # If the error is negative, it’s on the right -> we decrease angle
-                        step = 2 # Grados a mover por cada frame
+                        
                         if error_x > 0:
                             self.current_servo_angle += step
                         else:
