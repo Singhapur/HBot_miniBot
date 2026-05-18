@@ -93,6 +93,23 @@ class CameraReader(Node):
 
                     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
 
+            else:
+                # Publish home angle
+                if self.current_servo_angle != 90:
+                    if self.current_servo_angle > 90:
+                        self.current_servo_angle -= step
+                        if self.current_servo_angle < 90: 
+                            self.current_servo_angle = 90
+                    elif self.current_servo_angle < 90:
+                        self.current_servo_angle += step
+                        if self.current_servo_angle > 90:
+                            self.current_servo_angle = 90
+                servo_msg = Int32()
+                servo_msg.data = int(self.current_servo_angle)
+                self.publisher_servo.publish(servo_msg)
+
+
+
             # 4. Show result
             cv2.imshow("Vision Processing", frame)
             cv2.waitKey(1)
