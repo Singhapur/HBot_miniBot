@@ -5,8 +5,10 @@ import mediapipe as mp
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from std_msgs.msg import Int32
+from std_srvs.srv import Trigger
 from sensor_msgs.msg import Image
 from mediapipe.tasks import python
+from geometry_msgs.msg import Twist
 from sensor_msgs.msg import CompressedImage
 
 class CameraReader(Node):
@@ -19,14 +21,21 @@ class CameraReader(Node):
         # 2. Publishers: Send results to the rest of the robot
         self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_processed', 10)
         self.publisher_servo = self.create_publisher(Int32, '/set_camera_angle', 10)
+        self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
         
         # 3. MediaPipe configuration
         models_path = "/home/hp/ros2_tfg/models/"
+
+        # 4. Create service for follow a person
+        self.srv = self.create_service(Trigger, '/trigger_follow', self.trigger_scan_callback)
+        self.follow = False
 
         # Servo state
         self.current_servo_angle = 90
         self.last_servo_send_time = self.get_clock().now()
         self.move_step = 2
+        self.error_margin = 15
+        self.kp_speed = 0.015
         
         BaseOptions = python.BaseOptions(model_asset_path=models_path + "pose_landmarker_lite.task")
         VisionRunningMode = mp.tasks.vision.RunningMode
@@ -40,6 +49,19 @@ class CameraReader(Node):
             num_poses=1
         )
         self.pose_landmarker = PoseLandmarker.create_from_options(pose_options)
+
+    def trigger_scan_callback(self, request, response):
+        if self.follow:
+            self.follow = False
+            response.success = False
+            response.message = "Follow a person service has been stoped"
+            self.pub_cmd_vel.publish(Twist()) # Stop robot for safty 
+            return response
+        else:
+            self.follow = True
+            response.success = True
+            response.message = "Follow a person service has been started"
+            return response
 
     # --- MAIN LOOP (Callback) ---
     def listener_callback(self, msg):
@@ -59,6 +81,8 @@ class CameraReader(Node):
             pose_result = self.pose_landmarker.detect_for_video(mp_image, timestamp_ms)
 
             step = self.move_step # Grados a mover por cada frame
+            cmd = Twist() # Create basic speed msg from zero
+            person_detected = False
             
             if pose_result.pose_landmarks:
                 for landmarks in pose_result.pose_landmarks:
@@ -68,12 +92,14 @@ class CameraReader(Node):
                     x_min, x_max = min(xs), max(xs)
                     y_min, y_max = min(ys), max(ys)
 
+                    person_detected = True # We have detected a person
+
                     # Folow a person
                     person_center_x = (x_min + x_max) / 2
                     image_center_x = 128 # Half of 256
                     error_x = image_center_x - person_center_x
 
-                    if abs(error_x) > 20:
+                    if abs(error_x) > self.error_margin:
                         # If the error is positive, the person is on the left -> we increase angle
                         # If the error is negative, it’s on the right -> we decrease angle
                         
@@ -88,6 +114,22 @@ class CameraReader(Node):
                         servo_msg = Int32()
                         servo_msg.data = int(self.current_servo_angle)
                         self.publisher_servo.publish(servo_msg)
+
+                    # Follow logic
+                    if self.follow:
+                        error_servo = self.current_servo_angle - 90
+                        if abs(error_servo) > self.error_margin:
+                            # Proportional constant (Kp) for rotation.
+                            cmd.angular.z = error_servo * self.kp_speed
+                            
+                        # Move towards the person: We use the person's height as a distance proxy
+                        bbox_height = y_max - y_min
+                        
+                        # If the person occupies less than 180 pixels in height (far away), move forward
+                        if bbox_height < 180:
+                            cmd.linear.x = 0.15 # Linear approach velocity
+                        else:
+                            cmd.linear.x = 0.0 # Close enough
 
                     # --- MARGIN CORRECTION ---
                     margin = 20
@@ -110,6 +152,13 @@ class CameraReader(Node):
                 servo_msg = Int32()
                 servo_msg.data = int(self.current_servo_angle)
                 self.publisher_servo.publish(servo_msg)
+
+            # Publish vel comando     
+            if self.follow:
+                if not person_detected:
+                    self.pub_cmd_vel.publish(Twist())
+                else:
+                    self.pub_cmd_vel.publish(cmd)
 
 
 

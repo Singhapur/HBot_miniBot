@@ -204,9 +204,9 @@ class ControllerNode(Node):
             # New target for smooth stop
             self.target_v = 0.0
             self.target_w = 0.0
-
-
-        self.assign_vel() 
+        else:
+            self.assign_vel() 
+            
         # Convert absolute values to signed values (positive/negative)
         val_left = self.base_pwm_left if self.dir_left == 1 else -self.base_pwm_left
         if self.dir_left == 2: val_left = 0
