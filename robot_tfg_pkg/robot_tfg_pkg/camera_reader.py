@@ -94,29 +94,28 @@ class CameraReader(Node):
 
                     person_detected = True # We have detected a person
 
-                    # Folow a person
-                    person_center_x = (x_min + x_max) / 2
-                    image_center_x = 128 # Half of 256
-                    error_x = image_center_x - person_center_x
-
-                    if abs(error_x) > self.error_margin:
-                        # If the error is positive, the person is on the left -> we increase angle
-                        # If the error is negative, it’s on the right -> we decrease angle
-                        
-                        if error_x > 0:
-                            self.current_servo_angle += step
-                        else:
-                            self.current_servo_angle -= step
-
-                        self.current_servo_angle = max(0, min(180, self.current_servo_angle))
-
-                        # Publish new angle
-                        servo_msg = Int32()
-                        servo_msg.data = int(self.current_servo_angle)
-                        self.publisher_servo.publish(servo_msg)
-
                     # Follow logic
                     if self.follow:
+                        # Folow a person
+                        person_center_x = (x_min + x_max) / 2
+                        image_center_x = 128 # Half of 256
+                        error_x = image_center_x - person_center_x
+
+                        if abs(error_x) > self.error_margin:
+                            # If the error is positive, the person is on the left -> we increase angle
+                            # If the error is negative, it’s on the right -> we decrease angle
+                            
+                            if error_x > 0:
+                                self.current_servo_angle += step
+                            else:
+                                self.current_servo_angle -= step
+
+                            self.current_servo_angle = max(0, min(180, self.current_servo_angle))
+                            # Publish new angle
+                            servo_msg = Int32()
+                            servo_msg.data = int(self.current_servo_angle)
+                            self.publisher_servo.publish(servo_msg)
+
                         error_servo = self.current_servo_angle - 90
                         if abs(error_servo) > self.error_margin:
                             # Proportional constant (Kp) for rotation.
