@@ -1,9 +1,10 @@
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Range
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16MultiArray
-from sensor_msgs.msg import JointState, Imu
-from sensor_msgs.msg import Range
+
 
 class ControllerNode(Node):
     def __init__(self):
@@ -13,9 +14,8 @@ class ControllerNode(Node):
         
         # Subscriptions
         self.sub_cmd_vel = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
-        self.sub_joints = self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
-        self.sub_imu = self.create_subscription(Imu, '/imu/data_raw', self.imu_callback, 10)
         self.sub_lidar = self.create_subscription(Range, '/sensor_distancia', self.distance_callback, 10)
+        self.sub_odom = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         
         # Publisher
         self.pub_pwm = self.create_publisher(Int16MultiArray, '/pwm_setpoints', 10)
@@ -32,12 +32,14 @@ class ControllerNode(Node):
         # Smooth acceleration variables 
         self.max_accel_v = 0.8 # m/s
         self.max_accel_w = 2.0 # rads/s
-        self.dt = 0.1 # timer runs at 0.1 segundos
+
+        self.max_decel_v = 2.5 # m/s 
+        self.max_decel_w = 6.0 # rads/s
+        self.dt = 0.1 # timer runs at 0.1 seconds
         
-        # IMU variables & sensor variables
-        self.imu_yaw_rate = 0.0
-        self.current_distance = 100.0 # Meter
-        self.min_distance = 0.15 # M  
+        # Sensor variables
+        self.current_distance = 100.0 # meters
+        self.min_distance = 0.15 # m  
         
         # State variables
         self.base_pwm_left = 0
@@ -65,23 +67,28 @@ class ControllerNode(Node):
         
     def distance_callback(self, msg):
         self.current_distance = msg.range
-       
-    def imu_callback(self, msg):
-        # angular_velocity.z indicates rotation speed in rad/s
-        self.imu_yaw_rate = msg.angular_velocity.z
 
-    def joint_callback(self, msg):
+    def cmd_vel_callback(self, msg):
+        self.last_cmd_time = self.get_clock().now()
+        v = msg.linear.x
+        w = msg.angular.z
+        self.target_v = msg.linear.x
+        self.target_w = msg.angular.z
+
+        if self.current_distance <= self.min_distance and self.target_v > 0:
+            self.target_v = 0.0
+            self.target_w = 0.0
+            self.current_v = 0.0
+            self.current_w = 0.0
+
+    def odom_callback(self, msg):
+        # We could use odometry data for additional control or state estimation if needed
+        real_w = msg.twist.twist.angular.z
+
         # Apply PID if going in a straight line
         if self.straight_line_mode:
-            if self.use_imu:
-                # IMU error. Inverted to correct left/right drift
-                error = -self.imu_yaw_rate * 10.0
-            else:
-                rl_rads = abs(msg.velocity[2])
-                rr_rads = abs(msg.velocity[3])
-                
-                # Encoder error
-                error = float(rl_rads) - float(rr_rads)
+            
+            error = -real_w * 10.0 
             
             integral_term = 0.0
             
@@ -112,41 +119,32 @@ class ControllerNode(Node):
             self.base_pwm_right = max(95, min(255, self.base_pwm_right))
             self.last_pwm_right = self.base_pwm_right
 
-    def cmd_vel_callback(self, msg):
-        self.last_cmd_time = self.get_clock().now()
-        v = msg.linear.x
-        w = msg.angular.z
-        self.target_v = msg.linear.x
-        self.target_w = msg.angular.z
-
-        if self.current_distance <= self.min_distance and self.target_v > 0:
-            self.target_v = 0.0
-            self.target_w = 0.0
-            self.current_v = 0.0
-            self.current_w = 0.0
 
     def assign_vel(self):
         # Smooth acceleration logic
-        # Calculamos la diferencia entre lo que queremos y lo que tenemos
+        # Calculate the difference between what we want and what we have
         dv = self.target_v - self.current_v
         dw = self.target_w - self.current_w
         
-        # Cuánto podemos cambiar como máximo en este ciclo (0.1s)
-        max_step_v = self.max_accel_v * self.dt
-        max_step_w = self.max_accel_w * self.dt
+        # We brake if the absolute target is smaller than the current one, or if we suddenly change direction
+        is_braking_v = abs(self.target_v) < abs(self.current_v) or (self.target_v * self.current_v < 0)
+        is_braking_w = abs(self.target_w) < abs(self.current_w) or (self.target_w * self.current_w < 0)
         
-        # Aplicar rampa lineal
-        if abs(dv) > max_step_v:
-            self.current_v += max_step_v if dv > 0 else -max_step_v
+        # Assign the corresponding step limit
+        step_limit_v = (self.max_decel_v if is_braking_v else self.max_accel_v) * self.dt
+        step_limit_w = (self.max_decel_w if is_braking_w else self.max_accel_w) * self.dt
+        
+        # Apply linear ramp
+        if abs(dv) > step_limit_v:
+            self.current_v += step_limit_v if dv > 0 else -step_limit_v
         else:
             self.current_v = self.target_v
             
-        # Aplicar rampa angular
-        if abs(dw) > max_step_w:
-            self.current_w += max_step_w if dw > 0 else -max_step_w
+        # Apply angular ramp
+        if abs(dw) > step_limit_w:
+            self.current_w += step_limit_w if dw > 0 else -step_limit_w
         else:
             self.current_w = self.target_w
-
 
         # 3. Set speed
         v = self.current_v
@@ -204,8 +202,8 @@ class ControllerNode(Node):
             # New target for smooth stop
             self.target_v = 0.0
             self.target_w = 0.0
-        else:
-            self.assign_vel() 
+        
+        self.assign_vel() 
             
         # Convert absolute values to signed values (positive/negative)
         val_left = self.base_pwm_left if self.dir_left == 1 else -self.base_pwm_left
