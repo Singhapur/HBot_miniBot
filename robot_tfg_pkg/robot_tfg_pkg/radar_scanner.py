@@ -30,8 +30,8 @@ class RadarScanner(Node):
         self.last_distance = -1.0
         self.points_buffer = []
 
-        # Radar loop at 20Hz (0.05 seconds).
-        self.timer = self.create_timer(0.05, self.scan_step)
+        # Radar loop at 0.5 seconds.
+        self.timer = self.create_timer(0.5, self.scan_step)
 
         # Center the servo on startup
         self.center_servo()
