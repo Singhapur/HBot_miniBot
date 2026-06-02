@@ -19,7 +19,7 @@ class CameraReader(Node):
         self.subscription = self.create_subscription(CompressedImage, '/image_compressed_raw', self.listener_callback, 10)
         
         # 2. Publishers: Send results to the rest of the robot
-        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_processed', 10)
+        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_processed', 15)
         self.publisher_servo = self.create_publisher(Int32, '/set_camera_angle', 10)
         self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
         
@@ -37,7 +37,7 @@ class CameraReader(Node):
         self.error_margin = 15
         self.kp_speed = 0.015
         
-        BaseOptions = python.BaseOptions(model_asset_path=models_path + "pose_landmarker_lite.task")
+        BaseOptions = python.BaseOptions(model_asset_path=models_path + "pose_landmarker_full.task")
         VisionRunningMode = mp.tasks.vision.RunningMode
         
         # Initialize Pose

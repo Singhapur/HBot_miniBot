@@ -21,7 +21,7 @@ class CameraPublisher(Node):
                 self.get_logger().error(f'Camera not detected')
         
         # 2. Publishers: Send results to the rest of the robot of compressed image
-        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_raw', 10)
+        self.publisher_img = self.create_publisher(CompressedImage, '/image_compressed_raw', 15)
         
         # Communication period
         self.periodCommunication = 0.05
