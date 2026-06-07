@@ -44,6 +44,12 @@ class Esp32Bridge(Node):
         # Very fast read timer (200 Hz) to prevent losing bytes
         self.timer = self.create_timer(0.005, self.read_serial)
 
+        # Variables for gyroscope auto-calibration
+        self.is_calibrating = True
+        self.calibration_samples_gz = []
+        self.gz_offset = 0.0
+        self.MAX_SAMPLES = 200 # We will take 200 samples (~1 second at 200Hz)
+
     def euler_to_quaternion(self, roll, pitch, yaw):
         qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
         qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
@@ -125,21 +131,39 @@ class Esp32Bridge(Node):
             values = struct.unpack('<9f', data)
             ax, ay, az, gx, gy, gz, mx, my, mz = values
 
+            # ---------------------------------------
+            # 1. FASE DE AUTOCALIBRACIÓN (Al arrancar)
+            # ---------------------------------------
+            if self.is_calibrating:
+                self.calibration_samples_gz.append(gz)
+                if len(self.calibration_samples_gz) >= self.MAX_SAMPLES:
+                    # Calcular el promedio del error en reposo
+                    self.gz_offset = sum(self.calibration_samples_gz) / self.MAX_SAMPLES
+                    self.is_calibrating = False
+                    self.get_logger().info(f'¡IMU Calibrada! Offset Z calculado: {self.gz_offset:.5f} rad/s')
+                return # No publicamos odometría hasta que termine de calibrar
+            
+            # ---------------------------------------
+            # 2. APPLY CALIBRATION
+            # ---------------------------------------
+            # Subtract the calculated systematic error
+            gz_calibrated = gz - self.gz_offset
+
             # Calculate dt for the gyroscope
             dt = (now.nanoseconds - self.last_time.nanoseconds) / 1e9
             self.last_time = now
 
-            # Basic orientation calculations (Simple Fusion)
+            # Basic orientation calculations
             self.roll = math.atan2(ay, az)
             self.pitch = math.atan2(-ax, math.sqrt(ay*ay + az*az))
             
-            # --- DRIFT SOLUTION (Deadband) ---
-            # If turning speed is below 0.03 rad/s (sensor noise), force it to zero.
-            if abs(gz) < 0.03:
-                gz = 0.0
+            # Now the dead zone can be tiny, only for white noise
+            if abs(gz_calibrated) < 0.005: 
+                gz_calibrated = 0.0
                 
-            self.yaw += gz * dt
+            self.yaw += gz_calibrated * dt
             # ---------------------------------------
+            
             qx, qy, qz, qw = self.euler_to_quaternion(self.roll, self.pitch, self.yaw)
 
             # 1. Publish Standard IMU
@@ -158,7 +182,7 @@ class Esp32Bridge(Node):
             
             msg_imu.angular_velocity.x = gx
             msg_imu.angular_velocity.y = gy
-            msg_imu.angular_velocity.z = gz
+            msg_imu.angular_velocity.z = gz_calibrated
             
             # --- Covariance bypass for RViz2 ---
             msg_imu.orientation_covariance[0] = -1.0
