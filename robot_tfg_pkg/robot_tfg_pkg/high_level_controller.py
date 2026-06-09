@@ -83,15 +83,12 @@ class HighLevelController(Node):
         if distance_to_goal > self.distance_tolerance:
             # STATE A: Move towards the point
             
-            if abs(heading_error) > 0.3:
-                # Sub-state 1: Robot is way off target. Rotate on its axis first.
-                cmd.linear.x = 0.0
-                cmd.angular.z = self.kp_angular * heading_error
-            else:
-                # Sub-state 2: Already facing the goal, advance and correct smoothly
-                cmd.linear.x = self.kp_linear * distance_to_goal
-                cmd.angular.z = self.kp_angular * heading_error
-                
+            cmd.angular.z = self.kp_angular * heading_error
+            
+            # 2. Forward motion uses cosine to smooth the speed.
+            base_speed = self.kp_linear * distance_to_goal
+            cmd.linear.x = base_speed * max(0.0, math.cos(heading_error))
+
         else:
             # STATE B: We reached point X,Y. Now align the final orientation.
             final_heading_error = self.normalize_angle(self.goal_yaw - self.current_yaw)

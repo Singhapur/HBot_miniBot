@@ -33,13 +33,13 @@ class ControllerNode(Node):
         self.max_accel_v = 0.8 # m/s
         self.max_accel_w = 2.0 # rads/s
 
-        self.max_decel_v = 2.5 # m/s 
+        self.max_decel_v = 5.0 # m/s 
         self.max_decel_w = 6.0 # rads/s
         self.dt = 0.1 # timer runs at 0.1 seconds
         
         # Sensor variables
         self.current_distance = 100.0 # meters
-        self.min_distance = 0.15 # m  
+        self.min_distance = 0.20 # m  
         
         # State variables
         self.base_pwm_left = 0
@@ -62,6 +62,10 @@ class ControllerNode(Node):
         # PD Controller parameters
         self.kp = 4.5
         self.ki = 1.0
+
+        # Deadband compensation
+        self.MIN_PWM_STRAIGHT = 110
+        self.MIN_PWM_TURN = 140
         
         self.get_logger().info('Trajectory PID Controller Started')
         
@@ -165,15 +169,13 @@ class ControllerNode(Node):
         pwm_r = int(abs(v_right) * (255.0 / self.max_speed_ms))
 
         # Deadband compensation
-        MIN_PWM_STRAIGHT = 110
-        MIN_PWM_TURN = 135
         
         if self.straight_line_mode:      
-            if 0 < pwm_l < MIN_PWM_STRAIGHT: pwm_l = MIN_PWM_STRAIGHT
-            if 0 < pwm_r < MIN_PWM_STRAIGHT: pwm_r = MIN_PWM_STRAIGHT
+            if 0 < pwm_l < self.MIN_PWM_STRAIGHT: pwm_l = self.MIN_PWM_STRAIGHT
+            if 0 < pwm_r < self.MIN_PWM_STRAIGHT: pwm_r = self.MIN_PWM_STRAIGHT
         else:
-            if 0 < pwm_l < MIN_PWM_TURN: pwm_l = MIN_PWM_TURN
-            if 0 < pwm_r < MIN_PWM_TURN: pwm_r = MIN_PWM_TURN
+            if 0 < pwm_l < self.MIN_PWM_TURN: pwm_l = self.MIN_PWM_TURN
+            if 0 < pwm_r < self.MIN_PWM_TURN: pwm_r = self.MIN_PWM_TURN
 
         # Save the BASE from the kinematic calculation
         self.base_pwm_left = min(255, pwm_l)
