@@ -28,7 +28,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-		'camera_reader = robot_tfg_pkg.camera_reader:main',
+		'camera_reader_mediapipe = robot_tfg_pkg.camera_reader_mediapipe:main',
+		'camera_reader_yolo = robot_tfg_pkg.camera_reader_yolo:main',
 		'arduino_bridge = robot_tfg_pkg.arduino_bridge:main',
 		'controller_node = robot_tfg_pkg.controller_node:main',
 		'esp32_bridge = robot_tfg_pkg.esp32_bridge:main',

@@ -29,7 +29,7 @@ class HighLevelController(Node):
         self.kp_linear = 0.5       # Base speed for moving forward
         self.kp_angular = 1.0      # Turning strength
         self.max_linear_vel = 0.3  # Max m/s
-        self.max_angular_vel = 0.4 # Max rad/s
+        self.max_angular_vel = 0.8 # Max rad/s
         
         self.distance_tolerance = 0.10 # Stops 10 cm from the goal
         self.yaw_tolerance = 0.15      # Final alignment tolerance (radians)
@@ -84,10 +84,12 @@ class HighLevelController(Node):
             # STATE A: Move towards the point
             
             cmd.angular.z = self.kp_angular * heading_error
+
+            speed_factor = max(0.0, 1.0 - (abs(heading_error) / 1.0))
             
             # 2. Forward motion uses cosine to smooth the speed.
             base_speed = self.kp_linear * distance_to_goal
-            cmd.linear.x = base_speed * max(0.0, math.cos(heading_error))
+            cmd.linear.x = base_speed * speed_factor
 
         else:
             # STATE B: We reached point X,Y. Now align the final orientation.
