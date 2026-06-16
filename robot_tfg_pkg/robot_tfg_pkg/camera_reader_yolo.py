@@ -30,6 +30,7 @@ class CameraReader(Node):
         self.move_step = 2
         self.error_margin = 15
         self.kp_speed = 0.015
+        self.search_direction = 1
         
         # 4. Initialize YOLO11 Pose Model
         # Asumiendo que el archivo está en el mismo directorio de ejecución, o puedes poner la ruta absoluta
@@ -118,8 +119,30 @@ class CameraReader(Node):
                 # Dibujar el marco de seguimiento del chasis en rojo
                 cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
 
+            
+            if self.follow:
+                if not person_detected:
+                    # --- Searching ---
+                    cmd = Twist() 
+                    
+                    # La cámara hace un barrido de 0 a 180 grados
+                    self.current_servo_angle += self.search_direction * step
+                    if self.current_servo_angle >= 180:
+                        self.current_servo_angle = 180
+                        self.search_direction = -1 # Cambiar sentido a izquierda
+                    elif self.current_servo_angle <= 0:
+                        self.current_servo_angle = 0
+                        self.search_direction = 1  # Cambiar sentido a derecha
+
+                # Publish servo command (either pointing at the person or searching)
+                servo_msg = Int32()
+                servo_msg.data = int(self.current_servo_angle)
+                self.publisher_servo.publish(servo_msg)
+                
+                # Publicar comando a las ruedas
+                self.pub_cmd_vel.publish(cmd)
             else:
-                # Publish home angle si no hay persona
+                # Publish home angle
                 if self.current_servo_angle != 90:
                     if self.current_servo_angle > 90:
                         self.current_servo_angle -= step
