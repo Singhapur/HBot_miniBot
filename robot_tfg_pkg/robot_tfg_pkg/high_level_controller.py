@@ -29,7 +29,7 @@ class HighLevelController(Node):
         self.kp_linear = 0.5       # Base speed for moving forward
         self.kp_angular = 1.0      # Turning strength
         self.max_linear_vel = 0.3  # Max m/s
-        self.max_angular_vel = 1.0 # Max rad/s
+        self.max_angular_vel = 1.5 # Max rad/s
         
         self.distance_tolerance = 0.10 # Stops 10 cm from the goal
         self.yaw_tolerance = 0.15      # Final alignment tolerance (radians)
