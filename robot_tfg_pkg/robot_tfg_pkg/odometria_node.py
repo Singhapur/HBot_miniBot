@@ -15,7 +15,7 @@ class OdometryNode(Node):
         self.wheel_base = 0.145     
         
         # --- CALIBRATION CONSTANTS ---
-        self.linear_correction = 1.90 
+        self.linear_correction = 2.00 
         self.angular_correction = 0.85 
 
         # --- SENSOR FUSION ---

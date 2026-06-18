@@ -23,7 +23,9 @@ class HighLevelController(Node):
         self.goal_x = 0.0
         self.goal_y = 0.0
         self.goal_yaw = 0.0
+        
         self.has_goal = False
+        self.is_aligning = False
         
         # 4. CONTROLLER PARAMETERS (Adjustable)
         self.kp_linear = 0.5       # Base speed for moving forward
@@ -61,6 +63,8 @@ class HighLevelController(Node):
         self.goal_yaw = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
         
         self.has_goal = True
+        self.is_aligning = True # When receiving a new goal, always stop first to face it
+        
         self.get_logger().info(f'New Goal Received! -> X: {self.goal_x:.2f}, Y: {self.goal_y:.2f}')
 
     def control_loop(self):
@@ -83,13 +87,23 @@ class HighLevelController(Node):
         if distance_to_goal > self.distance_tolerance:
             # STATE A: Move towards the point
             
-            cmd.angular.z = self.kp_angular * heading_error
-
-            speed_factor = max(0.0, 1.0 - (abs(heading_error) / 1.0))
-            
-            # 2. Forward motion uses cosine to smooth the speed.
-            base_speed = self.kp_linear * distance_to_goal
-            cmd.linear.x = base_speed * speed_factor
+            if self.is_aligning:
+                # Sub-state 1: PURE ALIGNMENT (Rotate in place)
+                cmd.linear.x = 0.0
+                cmd.angular.z = self.kp_angular * heading_error
+                
+                # If the error is less than 0.15 rad (~8.5 degrees), we are facing the goal. Move forward!
+                if abs(heading_error) < 0.15:
+                    self.is_aligning = False
+                    
+            else:
+                # Sub-state 2: FORWARD MOTION (With gentle correction)
+                cmd.linear.x = self.kp_linear * distance_to_goal
+                cmd.angular.z = self.kp_angular * heading_error
+                
+                # HYSTERESIS (Anti Zig-Zag): Only stop and realign if the deviation is very large (> 22 degrees)
+                if abs(heading_error) > 0.4:
+                    self.is_aligning = True
 
         else:
             # STATE B: We reached point X,Y. Now align the final orientation.
