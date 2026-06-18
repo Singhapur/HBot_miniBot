@@ -28,12 +28,14 @@ class CameraReader(Node):
         self.current_servo_angle = 90
         self.last_servo_send_time = self.get_clock().now()
         self.move_step = 2
+        self.search_step = 15
         self.error_margin = 15
         self.kp_speed = 0.015
         self.search_direction = 1
+        self.at_home_position = True
         
         # 4. Initialize YOLO11 Pose Model
-        # Asumiendo que el archivo está en el mismo directorio de ejecución, o puedes poner la ruta absoluta
+        # Assuming the file is in the same execution directory, or you can use an absolute path
         self.yolo_model = YOLO("yolo11n-pose.pt")
         self.get_logger().info('YOLO11 Pose Model Loaded successfully!')
 
@@ -64,28 +66,21 @@ class CameraReader(Node):
             cmd = Twist() 
             person_detected = False
             
-            # Comprobamos si YOLO ha detectado al menos a una persona
+            # Check if YOLO has detected at least one person
             if len(results) > 0 and len(results[0].boxes) > 0:
                 person_detected = True 
+                self.home_position = False 
                 
-                # YOLO te da la Bounding Box (caja) directamente [x_min, y_min, x_max, y_max]
-                # Cogemos la primera persona detectada (índice 0)
+                # YOLO gives the bounding box directly [x_min, y_min, x_max, y_max]
+                # Take the first detected person (index 0)
                 box = results[0].boxes[0].xyxy[0].cpu().numpy()
                 x_min, y_min, x_max, y_max = int(box[0]), int(box[1]), int(box[2]), int(box[3])
 
-                # Opcional: Dibujar los puntos del esqueleto como en tu ejemplo de YOLO
-                if results[0].keypoints is not None:
-                    for kp_set in results[0].keypoints.xy:
-                        for kp in kp_set:
-                            x, y = int(kp[0]), int(kp[1])
-                            if x > 0 and y > 0: 
-                                cv2.circle(frame, (x, y), 4, (0, 165, 255), -1)
-
                 # Follow logic
                 if self.follow:
-                    # Centro de la persona usando la caja directamente
+                    # Person center using the box directly
                     person_center_x = (x_min + x_max) / 2
-                    image_center_x = frame.shape[1] / 2 # Centro dinámico de la imagen
+                    image_center_x = frame.shape[1] / 2 # Dynamic image center
                     error_x = image_center_x - person_center_x
 
                     if abs(error_x) > self.error_margin:
@@ -116,45 +111,46 @@ class CameraReader(Node):
                     else:
                         cmd.linear.x = 0.0 # Close enough
 
-                # Dibujar el marco de seguimiento del chasis en rojo
+                # Draw the tracking box on the chassis in red
                 cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
-
-            
-            if self.follow:
-                if not person_detected:
-                    # --- Searching ---
-                    cmd = Twist() 
-                    
-                    # La cámara hace un barrido de 0 a 180 grados
-                    self.current_servo_angle += self.search_direction * step
-                    if self.current_servo_angle >= 180:
-                        self.current_servo_angle = 180
-                        self.search_direction = -1 # Cambiar sentido a izquierda
-                    elif self.current_servo_angle <= 0:
-                        self.current_servo_angle = 0
-                        self.search_direction = 1  # Cambiar sentido a derecha
-
-                # Publish servo command (either pointing at the person or searching)
-                servo_msg = Int32()
-                servo_msg.data = int(self.current_servo_angle)
-                self.publisher_servo.publish(servo_msg)
-                
-                # Publicar comando a las ruedas
-                self.pub_cmd_vel.publish(cmd)
             else:
-                # Publish home angle
-                if self.current_servo_angle != 90:
-                    if self.current_servo_angle > 90:
-                        self.current_servo_angle -= step
-                        if self.current_servo_angle < 90: 
-                            self.current_servo_angle = 90
-                    elif self.current_servo_angle < 90:
-                        self.current_servo_angle += step
-                        if self.current_servo_angle > 90:
-                            self.current_servo_angle = 90
-                servo_msg = Int32()
-                servo_msg.data = int(self.current_servo_angle)
-                self.publisher_servo.publish(servo_msg)
+                if self.follow:
+                    if not person_detected:
+                        # --- Searching ---
+                        cmd = Twist() 
+                        
+                        # The camera sweeps from 0 to 180 degrees
+                        self.current_servo_angle += self.search_direction * self.search_step
+                        if self.current_servo_angle >= 180:
+                            self.current_servo_angle = 180
+                            self.search_direction = -1 # Change direction to left
+                        elif self.current_servo_angle <= 0:
+                            self.current_servo_angle = 0
+                            self.search_direction = 1  # Change direction to right
+
+                    # Publish servo command (either pointing at the person or searching)
+                    servo_msg = Int32()
+                    servo_msg.data = int(self.current_servo_angle)
+                    self.publisher_servo.publish(servo_msg)
+                    
+                    # Publicar comando a las ruedas
+                    self.pub_cmd_vel.publish(cmd)
+                else:
+                    # Only publish servo command to return to home position
+                    if not self.at_home_position:
+                        # Publish home angle
+                        if self.current_servo_angle != 90:
+                            if self.current_servo_angle > 90:
+                                self.current_servo_angle -= step
+                                if self.current_servo_angle < 90: 
+                                    self.current_servo_angle = 90
+                            elif self.current_servo_angle < 90:
+                                self.current_servo_angle += step
+                                if self.current_servo_angle > 90:
+                                    self.current_servo_angle = 90
+                        servo_msg = Int32()
+                        servo_msg.data = int(self.current_servo_angle)
+                        self.publisher_servo.publish(servo_msg)
 
             # Publish vel comando     
             if self.follow:
