@@ -27,15 +27,15 @@ class CameraReader(Node):
         # Servo and Control state
         self.current_servo_angle = 90
         self.last_servo_send_time = self.get_clock().now()
-        self.move_step = 2
-        self.search_step = 15
+        
+        self.move_step = 2      
+        self.search_step = 2    
+        
         self.error_margin = 15
         self.kp_speed = 0.015
         self.search_direction = 1
-        self.at_home_position = True
         
         # 4. Initialize YOLO11 Pose Model
-        # Assuming the file is in the same execution directory, or you can use an absolute path
         self.yolo_model = YOLO("yolo11n-pose.pt")
         self.get_logger().info('YOLO11 Pose Model Loaded successfully!')
 
@@ -62,14 +62,12 @@ class CameraReader(Node):
             # 2. Detect Pose with YOLO11
             results = self.yolo_model.predict(frame, verbose=False)
 
-            step = self.move_step 
             cmd = Twist() 
             person_detected = False
             
             # Check if YOLO has detected at least one person
             if len(results) > 0 and len(results[0].boxes) > 0:
                 person_detected = True 
-                self.home_position = False 
                 
                 # YOLO gives the bounding box directly [x_min, y_min, x_max, y_max]
                 # Take the first detected person (index 0)
@@ -84,14 +82,13 @@ class CameraReader(Node):
                     error_x = image_center_x - person_center_x
 
                     if abs(error_x) > self.error_margin:
-                        # If the error is positive, the person is on the left -> we increase angle
-                        # If the error is negative, it’s on the right -> we decrease angle
                         if error_x > 0:
-                            self.current_servo_angle += step
+                            self.current_servo_angle += self.move_step
                         else:
-                            self.current_servo_angle -= step
+                            self.current_servo_angle -= self.move_step
 
                         self.current_servo_angle = max(0, min(180, self.current_servo_angle))
+                        
                         # Publish new angle
                         servo_msg = Int32()
                         servo_msg.data = int(self.current_servo_angle)
@@ -105,7 +102,6 @@ class CameraReader(Node):
                     # Move towards the person: We use the person's height as a distance proxy
                     bbox_height = y_max - y_min
                     
-                    # If the person occupies less than 180 pixels in height (far away), move forward
                     if bbox_height < 180:
                         cmd.linear.x = 0.15 # Linear approach velocity
                     else:
@@ -113,14 +109,16 @@ class CameraReader(Node):
 
                 # Draw the tracking box on the chassis in red
                 cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
+            
             else:
                 if self.follow:
                     if not person_detected:
-                        # --- Searching ---
+                        # --- Searching (Patrolling Mode) ---
                         cmd = Twist() 
                         
-                        # The camera sweeps from 0 to 180 degrees
+                        # The camera sweeps slowly from 0 to 180 degrees using search_step
                         self.current_servo_angle += self.search_direction * self.search_step
+                        
                         if self.current_servo_angle >= 180:
                             self.current_servo_angle = 180
                             self.search_direction = -1 # Change direction to left
@@ -128,26 +126,23 @@ class CameraReader(Node):
                             self.current_servo_angle = 0
                             self.search_direction = 1  # Change direction to right
 
-                    # Publish servo command (either pointing at the person or searching)
-                    servo_msg = Int32()
-                    servo_msg.data = int(self.current_servo_angle)
-                    self.publisher_servo.publish(servo_msg)
-                    
-                    # Publicar comando a las ruedas
-                    self.pub_cmd_vel.publish(cmd)
+                        # Publish servo command for searching
+                        servo_msg = Int32()
+                        servo_msg.data = int(self.current_servo_angle)
+                        self.publisher_servo.publish(servo_msg)
+                        
                 else:
-                    # Only publish servo command to return to home position
-                    if not self.at_home_position:
-                        # Publish home angle
-                        if self.current_servo_angle != 90:
+                    # --- Idle Mode (Return to Center) ---
+                    if self.current_servo_angle != 90:
+                        if self.current_servo_angle > 90:
+                            self.current_servo_angle -= self.move_step
+                            if self.current_servo_angle < 90: 
+                                self.current_servo_angle = 90
+                        elif self.current_servo_angle < 90:
+                            self.current_servo_angle += self.move_step
                             if self.current_servo_angle > 90:
-                                self.current_servo_angle -= step
-                                if self.current_servo_angle < 90: 
-                                    self.current_servo_angle = 90
-                            elif self.current_servo_angle < 90:
-                                self.current_servo_angle += step
-                                if self.current_servo_angle > 90:
-                                    self.current_servo_angle = 90
+                                self.current_servo_angle = 90
+                                
                         servo_msg = Int32()
                         servo_msg.data = int(self.current_servo_angle)
                         self.publisher_servo.publish(servo_msg)
