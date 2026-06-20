@@ -26,14 +26,21 @@ class CameraReader(Node):
 
         # Servo and Control state
         self.current_servo_angle = 90
-        self.last_servo_send_time = self.get_clock().now()
         
-        self.move_step = 2      
-        self.search_step = 2    
+        self.move_step = 1      # Turning speed when FOLLOWING a person
+        self.search_step = 5    # Degrees per search step
         
         self.error_margin = 15
         self.kp_speed = 0.015
         self.search_direction = 1
+        
+        # --- Timer for FPS-independent sweeping ---
+        self.last_search_time = self.get_clock().now()
+        self.search_delay = 1.5  # Seconds of delay between each degree of rotation.
+        
+        # --- NEW: "Patience" timer before searching ---
+        self.last_seen_time = self.get_clock().now()
+        self.wait_before_search = 3.0 # Seconds to wait idle before starting the search
         
         # 4. Initialize YOLO11 Pose Model
         self.yolo_model = YOLO("yolo11n-pose.pt")
@@ -69,6 +76,9 @@ class CameraReader(Node):
             if len(results) > 0 and len(results[0].boxes) > 0:
                 person_detected = True 
                 
+                # Update the "last seen" timestamp
+                self.last_seen_time = self.get_clock().now()
+                
                 # YOLO gives the bounding box directly [x_min, y_min, x_max, y_max]
                 # Take the first detected person (index 0)
                 box = results[0].boxes[0].xyxy[0].cpu().numpy()
@@ -102,7 +112,7 @@ class CameraReader(Node):
                     # Move towards the person: We use the person's height as a distance proxy
                     bbox_height = y_max - y_min
                     
-                    if bbox_height < 180:
+                    if bbox_height < 200:
                         cmd.linear.x = 0.15 # Linear approach velocity
                     else:
                         cmd.linear.x = 0.0 # Close enough
@@ -116,20 +126,29 @@ class CameraReader(Node):
                         # --- Searching (Patrolling Mode) ---
                         cmd = Twist() 
                         
-                        # The camera sweeps slowly from 0 to 180 degrees using search_step
-                        self.current_servo_angle += self.search_direction * self.search_step
+                        now = self.get_clock().now()
+                        time_since_seen = (now - self.last_seen_time).nanoseconds / 1e9
                         
-                        if self.current_servo_angle >= 180:
-                            self.current_servo_angle = 180
-                            self.search_direction = -1 # Change direction to left
-                        elif self.current_servo_angle <= 0:
-                            self.current_servo_angle = 0
-                            self.search_direction = 1  # Change direction to right
+                        # Wait 'wait_before_search' seconds before moving the servo
+                        if time_since_seen > self.wait_before_search:
+                            time_since_search = (now - self.last_search_time).nanoseconds / 1e9
+                            
+                            # Only rotate the camera if the specified time (search_delay) has elapsed
+                            if time_since_search > self.search_delay:
+                                self.current_servo_angle += self.search_direction * self.search_step
+                                self.last_search_time = now # Reset the timer
+                                
+                                if self.current_servo_angle >= 180:
+                                    self.current_servo_angle = 180
+                                    self.search_direction = -1 # Change direction to left
+                                elif self.current_servo_angle <= 0:
+                                    self.current_servo_angle = 0
+                                    self.search_direction = 1  # Change direction to right
 
-                        # Publish servo command for searching
-                        servo_msg = Int32()
-                        servo_msg.data = int(self.current_servo_angle)
-                        self.publisher_servo.publish(servo_msg)
+                                # Publish servo command for searching
+                                servo_msg = Int32()
+                                servo_msg.data = int(self.current_servo_angle)
+                                self.publisher_servo.publish(servo_msg)
                         
                 else:
                     # --- Idle Mode (Return to Center) ---
