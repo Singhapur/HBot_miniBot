@@ -24,23 +24,12 @@ class CameraReader(Node):
         self.srv = self.create_service(Trigger, '/trigger_follow', self.trigger_scan_callback)
         self.follow = False
 
-        # Servo and Control state
+        # Servo and Control state (Exactly as in original MediaPipe code)
         self.current_servo_angle = 90
         
-        self.move_step = 1      # Turning speed when FOLLOWING a person
-        self.search_step = 5    # Degrees per search step
-        
-        self.error_margin = 15
-        self.kp_speed = 0.015
-        self.search_direction = 1
-        
-        # --- Timer for FPS-independent sweeping ---
-        self.last_search_time = self.get_clock().now()
-        self.search_delay = 1.5  # Seconds of delay between each degree of rotation.
-        
-        # --- NEW: "Patience" timer before searching ---
-        self.last_seen_time = self.get_clock().now()
-        self.wait_before_search = 3.0 # Seconds to wait idle before starting the search
+        self.move_step = 2      # Fixed degrees to move per frame
+        self.error_margin = 15  # Pixel margin for center
+        self.kp_speed = 0.015   # Proportional constant for chassis rotation
         
         # 4. Initialize YOLO11 Pose Model
         self.yolo_model = YOLO("yolo11n-pose.pt")
@@ -69,15 +58,13 @@ class CameraReader(Node):
             # 2. Detect Pose with YOLO11
             results = self.yolo_model.predict(frame, verbose=False)
 
-            cmd = Twist() 
+            step = self.move_step # Degrees to move per frame
+            cmd = Twist() # Create basic speed msg from zero
             person_detected = False
             
             # Check if YOLO has detected at least one person
             if len(results) > 0 and len(results[0].boxes) > 0:
                 person_detected = True 
-                
-                # Update the "last seen" timestamp
-                self.last_seen_time = self.get_clock().now()
                 
                 # YOLO gives the bounding box directly [x_min, y_min, x_max, y_max]
                 # Take the first detected person (index 0)
@@ -86,16 +73,18 @@ class CameraReader(Node):
 
                 # Follow logic
                 if self.follow:
-                    # Person center using the box directly
+                    # Follow a person
                     person_center_x = (x_min + x_max) / 2
                     image_center_x = frame.shape[1] / 2 # Dynamic image center
                     error_x = image_center_x - person_center_x
 
                     if abs(error_x) > self.error_margin:
+                        # If the error is positive, the person is on the left -> we increase angle
+                        # If the error is negative, it’s on the right -> we decrease angle
                         if error_x > 0:
-                            self.current_servo_angle += self.move_step
+                            self.current_servo_angle += step
                         else:
-                            self.current_servo_angle -= self.move_step
+                            self.current_servo_angle -= step
 
                         self.current_servo_angle = max(0, min(180, self.current_servo_angle))
                         
@@ -112,7 +101,8 @@ class CameraReader(Node):
                     # Move towards the person: We use the person's height as a distance proxy
                     bbox_height = y_max - y_min
                     
-                    if bbox_height < 200:
+                    # If the person occupies less than 180 pixels in height (far away), move forward
+                    if bbox_height < 180:
                         cmd.linear.x = 0.15 # Linear approach velocity
                     else:
                         cmd.linear.x = 0.0 # Close enough
@@ -121,55 +111,25 @@ class CameraReader(Node):
                 cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
             
             else:
-                if self.follow:
-                    if not person_detected:
-                        # --- Searching (Patrolling Mode) ---
-                        cmd = Twist() 
-                        
-                        now = self.get_clock().now()
-                        time_since_seen = (now - self.last_seen_time).nanoseconds / 1e9
-                        
-                        # Wait 'wait_before_search' seconds before moving the servo
-                        if time_since_seen > self.wait_before_search:
-                            time_since_search = (now - self.last_search_time).nanoseconds / 1e9
-                            
-                            # Only rotate the camera if the specified time (search_delay) has elapsed
-                            if time_since_search > self.search_delay:
-                                self.current_servo_angle += self.search_direction * self.search_step
-                                self.last_search_time = now # Reset the timer
-                                
-                                if self.current_servo_angle >= 180:
-                                    self.current_servo_angle = 180
-                                    self.search_direction = -1 # Change direction to left
-                                elif self.current_servo_angle <= 0:
-                                    self.current_servo_angle = 0
-                                    self.search_direction = 1  # Change direction to right
-
-                                # Publish servo command for searching
-                                servo_msg = Int32()
-                                servo_msg.data = int(self.current_servo_angle)
-                                self.publisher_servo.publish(servo_msg)
-                        
-                else:
-                    # --- Idle Mode (Return to Center) ---
-                    if self.current_servo_angle != 90:
+                # Publish home angle if no person detected
+                if self.current_servo_angle != 90:
+                    if self.current_servo_angle > 90:
+                        self.current_servo_angle -= step
+                        if self.current_servo_angle < 90: 
+                            self.current_servo_angle = 90
+                    elif self.current_servo_angle < 90:
+                        self.current_servo_angle += step
                         if self.current_servo_angle > 90:
-                            self.current_servo_angle -= self.move_step
-                            if self.current_servo_angle < 90: 
-                                self.current_servo_angle = 90
-                        elif self.current_servo_angle < 90:
-                            self.current_servo_angle += self.move_step
-                            if self.current_servo_angle > 90:
-                                self.current_servo_angle = 90
-                                
-                        servo_msg = Int32()
-                        servo_msg.data = int(self.current_servo_angle)
-                        self.publisher_servo.publish(servo_msg)
+                            self.current_servo_angle = 90
+                            
+                    servo_msg = Int32()
+                    servo_msg.data = int(self.current_servo_angle)
+                    self.publisher_servo.publish(servo_msg)
 
-            # Publish vel comando     
+            # Publish velocity command     
             if self.follow:
                 if not person_detected:
-                    self.pub_cmd_vel.publish(Twist())
+                    self.pub_cmd_vel.publish(Twist()) # Stop the robot
                 else:
                     self.pub_cmd_vel.publish(cmd)
 
@@ -177,7 +137,7 @@ class CameraReader(Node):
             cv2.imshow("Vision Processing YOLO11", frame)
             cv2.waitKey(1)
             
-            # Publish processed image
+            # Publish processed image to view it on another PC if it's necessary 
             target_width = 256
             target_height = 256
             frame = cv2.resize(frame, (target_width, target_height))
