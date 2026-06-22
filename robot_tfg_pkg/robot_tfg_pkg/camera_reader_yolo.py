@@ -20,7 +20,7 @@ class CameraReader(Node):
         self.publisher_servo = self.create_publisher(Int32, '/set_camera_angle', 10)
         self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
         
-        # 3. Create service for follow a person
+        # 3. Create service to follow a person
         self.srv = self.create_service(Trigger, '/trigger_follow', self.trigger_scan_callback)
         self.follow = False
 

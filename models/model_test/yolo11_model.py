@@ -4,8 +4,10 @@ import numpy as np
 from ultralytics import YOLO
 
 def detect_people():
+    # 1. Initialize YOLO11 Pose Model
     yolo_model = YOLO("yolo11n-pose.pt")
     
+    # 2. Initialize the local webcam
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: Could not open webcam.")
@@ -21,9 +23,10 @@ def detect_people():
         start_yolo = time.time()
         results_yolo = yolo_model.predict(frame, verbose=False)
         end_yolo = time.time()
-        tiempo_yolo_ms = (end_yolo - start_yolo) * 1000
+        time_yolo_ms = (end_yolo - start_yolo) * 1000
 
-        # 2. Draw YOLO11 Pose points (Orange)
+        # --- KEYPOINT DRAWING ---
+        # Draw YOLO11 Pose points (Orange)
         if len(results_yolo) > 0 and results_yolo[0].keypoints is not None:
             # keypoints.xy contains the pixel coordinate matrices for each person
             for kp_set in results_yolo[0].keypoints.xy:
@@ -32,13 +35,14 @@ def detect_people():
                     if x > 0 and y > 0: # Avoid drawing undetected points (0,0)
                         cv2.circle(frame, (x, y), 4, (0, 165, 255), -1)
 
+        # --- SIDE DATA PANEL ---
         # Create a black background on the right side to display metrics cleanly
         panel = np.zeros((frame.shape[0], 360, 3), dtype=np.uint8)
 
         # YOLO11 Texts (Orange)
         cv2.putText(panel, "YOLO11 Pose (Nano):", (15, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-        cv2.putText(panel, f"Inference: {tiempo_yolo_ms:.1f} ms", (15, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-        fps_yolo = 1000 / tiempo_yolo_ms if tiempo_yolo_ms > 0 else 0
+        cv2.putText(panel, f"Inference: {time_yolo_ms:.1f} ms", (15, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        fps_yolo = 1000 / time_yolo_ms if time_yolo_ms > 0 else 0
         cv2.putText(panel, f"Model FPS: {fps_yolo:.1f}", (15, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
         # Color legend
@@ -47,10 +51,10 @@ def detect_people():
         cv2.putText(panel, "YOLO11 Points", (40, 445), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # Horizontally concatenate the camera frame with the data panel
-        interfaz_final = cv2.hconcat([frame, panel])
+        final_interface = cv2.hconcat([frame, panel])
 
         # Show the window on screen
-        cv2.imshow("TFG: MediaPipe Tasks vs YOLO11 Pose Comparison", interfaz_final)
+        cv2.imshow("TFG: YOLO11 Pose Evaluation", final_interface)
 
         # Exit with the 'q' key
         if cv2.waitKey(1) & 0xFF == ord('q'):

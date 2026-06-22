@@ -52,13 +52,13 @@ def main():
         start_mp = time.time()
         pose_result_mp = mediapipe_landmarker.detect_for_video(mp_image, timestamp_ms)
         end_mp = time.time()
-        tiempo_mp_ms = (end_mp - start_mp) * 1000
+        time_mp_ms = (end_mp - start_mp) * 1000
 
         # --- YOLO11 POSE EVALUATION ---
         start_yolo = time.time()
         results_yolo = yolo_model.predict(frame, verbose=False)
         end_yolo = time.time()
-        tiempo_yolo_ms = (end_yolo - start_yolo) * 1000
+        time_yolo_ms = (end_yolo - start_yolo) * 1000
 
         # --- KEYPOINT DRAWING (SKELETONS) ---
         # 1. Draw MediaPipe points (Green)
@@ -85,14 +85,14 @@ def main():
 
         # MediaPipe Texts (Green)
         cv2.putText(panel, "MediaPipe (Pose Tasks):", (15, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.putText(panel, f"Inference: {tiempo_mp_ms:.1f} ms", (15, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-        fps_mp = 1000 / tiempo_mp_ms if tiempo_mp_ms > 0 else 0
+        cv2.putText(panel, f"Inference: {time_mp_ms:.1f} ms", (15, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        fps_mp = 1000 / time_mp_ms if time_mp_ms > 0 else 0
         cv2.putText(panel, f"Model FPS: {fps_mp:.1f}", (15, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
         # YOLO11 Texts (Orange)
         cv2.putText(panel, "YOLO11 Pose (Nano):", (15, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-        cv2.putText(panel, f"Inference: {tiempo_yolo_ms:.1f} ms", (15, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-        fps_yolo = 1000 / tiempo_yolo_ms if tiempo_yolo_ms > 0 else 0
+        cv2.putText(panel, f"Inference: {time_yolo_ms:.1f} ms", (15, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        fps_yolo = 1000 / time_yolo_ms if time_yolo_ms > 0 else 0
         cv2.putText(panel, f"Model FPS: {fps_yolo:.1f}", (15, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
         # Color legend
@@ -103,10 +103,10 @@ def main():
         cv2.putText(panel, "YOLO11 Points", (40, 445), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # Horizontally concatenate the camera frame with the data panel
-        interfaz_final = cv2.hconcat([frame, panel])
+        final_interface = cv2.hconcat([frame, panel])
 
         # Show the window on screen
-        cv2.imshow("TFG: MediaPipe Tasks vs YOLO11 Pose Comparison", interfaz_final)
+        cv2.imshow("TFG: MediaPipe Tasks vs YOLO11 Pose Comparison", final_interface)
 
         # Exit with the 'q' key
         if cv2.waitKey(1) & 0xFF == ord('q'):
