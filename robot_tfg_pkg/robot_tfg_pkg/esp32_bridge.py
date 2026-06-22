@@ -132,16 +132,16 @@ class Esp32Bridge(Node):
             ax, ay, az, gx, gy, gz, mx, my, mz = values
 
             # ---------------------------------------
-            # 1. FASE DE AUTOCALIBRACIÓN (Al arrancar)
+            # 1. AUTO-CALIBRATION PHASE (On startup)
             # ---------------------------------------
             if self.is_calibrating:
                 self.calibration_samples_gz.append(gz)
                 if len(self.calibration_samples_gz) >= self.MAX_SAMPLES:
-                    # Calcular el promedio del error en reposo
+                    # Calculate the average error at rest
                     self.gz_offset = sum(self.calibration_samples_gz) / self.MAX_SAMPLES
                     self.is_calibrating = False
-                    self.get_logger().info(f'¡IMU Calibrada! Offset Z calculado: {self.gz_offset:.5f} rad/s')
-                return # No publicamos odometría hasta que termine de calibrar
+                    self.get_logger().info(f'IMU Calibrated! Z Offset calculated: {self.gz_offset:.5f} rad/s')
+                return # Do not publish odometry until calibration finishes
             
             # ---------------------------------------
             # 2. APPLY CALIBRATION
