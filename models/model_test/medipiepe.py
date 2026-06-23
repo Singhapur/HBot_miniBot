@@ -28,6 +28,8 @@ def main():
     if not cap.isOpened():
         print("Error: Could not open webcam.")
         return
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 256)
 
     print("\nModels ready! Starting live evaluation...")
     print("Press 'q' in the video window to exit.")
@@ -63,18 +65,18 @@ def main():
 
         # --- SIDE DATA PANEL ---
         # Create a black background on the right side to display metrics cleanly
-        panel = np.zeros((frame.shape[0], 360, 3), dtype=np.uint8)
+        panel = np.zeros((frame.shape[0], 256, 3), dtype=np.uint8)
 
         # MediaPipe Texts (Green)
-        cv2.putText(panel, "MediaPipe (Pose Tasks):", (15, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.putText(panel, f"Inference: {time_mp_ms:.1f} ms", (15, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        cv2.putText(panel, "MediaPipe (Pose Tasks):", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.putText(panel, f"Inference: {time_mp_ms:.1f} ms", (15, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         fps_mp = 1000 / time_mp_ms if time_mp_ms > 0 else 0
-        cv2.putText(panel, f"Model FPS: {fps_mp:.1f}", (15, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        cv2.putText(panel, f"Model FPS: {fps_mp:.1f}", (15, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
         # Color legend
-        cv2.putText(panel, "LEGEND:", (15, 380), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-        cv2.circle(panel, (25, 410), 6, (0, 255, 0), -1)
-        cv2.putText(panel, "MediaPipe Points", (40, 415), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(panel, "LEGEND:", (15, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        cv2.circle(panel, (25, 180), 6, (0, 255, 0), -1)
+        cv2.putText(panel, "MediaPipe Points", (40, 185), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # Horizontally concatenate the camera frame with the data panel
         final_interface = cv2.hconcat([frame, panel])
