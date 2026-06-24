@@ -38,6 +38,7 @@ setup(
         'high_level_controller = robot_tfg_pkg.high_level_controller:main',
         'camera_publish = robot_tfg_pkg.camera_publish:main',
         'camera_subscribe = robot_tfg_pkg.camera_subscribe:main',
+        'waypoint_sender = robot_tfg_pkg.waypoint_sender:main',
         ],
     },
 )
