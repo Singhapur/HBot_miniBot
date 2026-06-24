@@ -1,6 +1,7 @@
 import math
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 
@@ -11,6 +12,7 @@ class HighLevelController(Node):
         # 1. SUBSCRIBERS
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         self.sub_goal = self.create_subscription(PoseStamped, '/goal_pose', self.goal_callback, 10)
+        self.pub_status = self.create_publisher(Bool, '/goal_reached', 10)
         
         # 2. PUBLISHER
         self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -63,7 +65,7 @@ class HighLevelController(Node):
         self.goal_yaw = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
         
         self.has_goal = True
-        self.is_aligning = True # When receiving a new goal, always stop first to face it
+        self.is_aligning = True
         
         self.get_logger().info(f'New Goal Received! -> X: {self.goal_x:.2f}, Y: {self.goal_y:.2f}')
 
@@ -119,6 +121,11 @@ class HighLevelController(Node):
                 cmd.angular.z = 0.0
                 self.has_goal = False
                 self.get_logger().info('Goal Reached Successfully!')
+                
+                # Publish a status message to indicate goal completion
+                msg_status = Bool()
+                msg_status.data = True
+                self.pub_status.publish(msg_status)
 
         # 3. LIMIT VELOCITIES (Safety)
         cmd.linear.x = max(-self.max_linear_vel, min(self.max_linear_vel, cmd.linear.x))
