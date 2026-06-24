@@ -16,15 +16,17 @@ class WaypointSender(Node):
 
         # Format: (X in meters, Y in meters, Final heading angle in DEGREES)
         self.waypoints = [
-            (2.0, 0.0, 90.0),    # Waypoint 1
-            (0.0, 1.0, 90.0),    # Waypoint 2
-            (-2.0, 0.0, 0.0)     # Waypoint 3
+            (1.0, 0.0, 0.0),    # Waypoint 1
+            (1.0, 0.0, 85.0),   # Rotation
+            (1.0, 1.0, 85.0),   # Waypoint 2
+            (1.0, 1.0, 170.0),   # Rotation
+            (-1.0, 1.0, 170.0)   # Waypoint 2
         ]
 
         self.current_wp_index = 0
         self.first_sent = False
 
-        self.get_logger().info('Waypoint Sender Ready! Waiting 2 seconds to start the route...')
+        self.send_first_goal()
 
     def euler_to_quaternion(self, roll, pitch, yaw):
         qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - \

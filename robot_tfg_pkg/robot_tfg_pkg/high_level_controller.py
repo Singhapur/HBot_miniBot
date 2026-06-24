@@ -36,7 +36,8 @@ class HighLevelController(Node):
         self.max_angular_vel = 1.5 # Max rad/s
         
         self.distance_tolerance = 0.10 # Stops 10 cm from the goal
-        self.yaw_tolerance = 0.15      # Final alignment tolerance (radians)
+        self.yaw_tolerance = 0.08      # Final alignment tolerance (radians)
+        self.brake_anticipation = 0.15 # Stop engines ~8.5 degrees early to compensate for momentum
         
         # Control loop at 10 Hz
         self.timer = self.create_timer(0.1, self.control_loop)
@@ -95,7 +96,7 @@ class HighLevelController(Node):
                 cmd.angular.z = self.kp_angular * heading_error
                 
                 # If the error is less than 0.15 rad (~8.5 degrees), we are facing the goal. Move forward!
-                if abs(heading_error) < 0.15:
+                if abs(heading_error) < (self.yaw_tolerance + self.brake_anticipation):
                     self.is_aligning = False
                     
             else:
@@ -111,7 +112,7 @@ class HighLevelController(Node):
             # STATE B: We reached point X,Y. Now align the final orientation.
             final_heading_error = self.normalize_angle(self.goal_yaw - self.current_yaw)
             
-            if abs(final_heading_error) > self.yaw_tolerance:
+            if abs(final_heading_error) > (self.yaw_tolerance + self.brake_anticipation):
                 # Rotate on its axis to match the RViz arrow
                 cmd.linear.x = 0.0
                 cmd.angular.z = self.kp_angular * final_heading_error
