@@ -105,9 +105,7 @@ class Esp32Bridge(Node):
     def process_packet(self, packet_id, data):
         now = self.get_clock().now()
         
-        # ==========================================
         # LiDAR PACKET (ID 0x04)
-        # ==========================================
         if packet_id == ID_LIDAR and len(data) == 2:
             # '<H' means: Little-Endian (<), Unsigned Short Integer (H, 2 bytes)
             distance_cm = struct.unpack('<H', data)[0]
@@ -123,17 +121,13 @@ class Esp32Bridge(Node):
             
             self.pub_lidar.publish(msg_range)
 
-        # ==========================================
         # IMU + MAGNETOMETER PACKET (ID 0x03)
-        # ==========================================
         elif packet_id == ID_IMU and len(data) == 36:
             # '<9f' means: Little-Endian (<), 9 Floats (f, 4 bytes each = 36 bytes)
             values = struct.unpack('<9f', data)
             ax, ay, az, gx, gy, gz, mx, my, mz = values
 
-            # ---------------------------------------
             # 1. AUTO-CALIBRATION PHASE (On startup)
-            # ---------------------------------------
             if self.is_calibrating:
                 self.calibration_samples_gz.append(gz)
                 if len(self.calibration_samples_gz) >= self.MAX_SAMPLES:
@@ -143,9 +137,8 @@ class Esp32Bridge(Node):
                     self.get_logger().info(f'IMU Calibrated! Z Offset calculated: {self.gz_offset:.5f} rad/s')
                 return # Do not publish odometry until calibration finishes
             
-            # ---------------------------------------
             # 2. APPLY CALIBRATION
-            # ---------------------------------------
+
             # Subtract the calculated systematic error
             gz_calibrated = gz - self.gz_offset
 

@@ -117,7 +117,7 @@ class HighLevelController(Node):
                 cmd.linear.x = 0.0
                 cmd.angular.z = self.kp_angular * final_heading_error
             else:
-                # GOAL REACHED!
+                # GOAL REACHED
                 cmd.linear.x = 0.0
                 cmd.angular.z = 0.0
                 self.has_goal = False

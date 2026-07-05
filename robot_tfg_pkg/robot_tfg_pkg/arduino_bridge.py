@@ -55,9 +55,7 @@ class ArduinoBridge(Node):
         self.timer_read = self.create_timer(0.01, self.read_serial)
         self.timer_send = self.create_timer(0.1, self.send_packet)
 
-    # ========================================================
     # RECEIVE INSTRUCTIONS FROM THE BRAIN
-    # ========================================================
     def pwm_callback(self, msg):
         if len(msg.data) == 2:
             val_left = msg.data[0]
@@ -91,9 +89,7 @@ class ArduinoBridge(Node):
     def lidar_callback(self, msg):
         self.lidar_angle = max(0, min(180, msg.data))
 
-    # ========================================================
     # SERIAL COMMUNICATION
-    # ========================================================
     def send_packet(self):
         if not self.ser: return
         data = [

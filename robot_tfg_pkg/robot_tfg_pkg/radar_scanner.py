@@ -83,7 +83,6 @@ class RadarScanner(Node):
             z = 0.0 
             self.points_buffer.append([x, y, z])
 
-        # --- THE UPGRADE: CHUNKED SENDING ---
         # If we have accumulated 5 points, publish them immediately to see them in RViz
         if len(self.points_buffer) >= 5:
             self.publish_pointcloud(self.points_buffer)

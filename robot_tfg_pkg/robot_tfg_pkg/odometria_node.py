@@ -120,7 +120,6 @@ class OdometryNode(Node):
             if abs(delta_th_enc - delta_th_imu) > 0.05:
                 dist_center = 0.0
             
-            # --- SENSOR FUSION: Who calculates the turn? ---
             if self.use_imu:
                 # Real turn (delta theta) is IMU velocity multiplied by time
                 delta_th = self.imu_yaw_rate * dt
