@@ -2,7 +2,8 @@
 
 Final Degree Project (Bachelor’s Thesis) repository to build a **miniBot** based on a distributed architecture using Arduino, Raspberry Pi, and ESP32.
 
-This project documents the complete process: from physical construction (CAD design and 3D printing) to programming and integration of the different systems using ROS 2 and AI computer vision.
+This project documents the complete process, from physical construction (CAD design and 3D printing) to programming and integration of the different systems using ROS 2 and AI computer vision.
+
 ---
 
 # 📌 Description
