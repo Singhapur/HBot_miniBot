@@ -16,17 +16,15 @@ class WaypointSender(Node):
 
         # Format: (X in meters, Y in meters, Final heading angle in DEGREES)
         self.waypoints = [
-            (1.0, 0.0, 0.0),    # Waypoint 1
-            (1.0, 0.0, 85.0),   # Rotation
-            (1.0, 1.0, 85.0),   # Waypoint 2
-            (1.0, 1.0, 170.0),   # Rotation
-            (-1.0, 1.0, 170.0)   # Waypoint 2
+            (1.0, 0.0, 85.0),    # Waypoint 1
+            (1.0, 0.85, 180.0),   # Waypoint 2
+            (0.0, 0.85, 180.0)   # Waypoint 3
         ]
 
         self.current_wp_index = 0
         self.first_sent = False
 
-        self.send_first_goal()
+        self.timer = self.create_timer(0.5, self.check_and_send_first)
 
     def euler_to_quaternion(self, roll, pitch, yaw):
         qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - \
@@ -43,10 +41,14 @@ class WaypointSender(Node):
 
         return qx, qy, qz, qw
 
-    def send_first_goal(self):
+    def check_and_send_first(self):
         if not self.first_sent:
-            self.send_current_goal()
-            self.first_sent = True
+            if self.pub_goal.get_subscription_count() > 0:
+                self.get_logger().info('High-Level Controller connected! Sending first waypoint...')
+                self.send_current_goal()
+                self.first_sent = True
+            else:
+                self.get_logger().info('Waiting for network... no subscribers to /goal_pose yet.')
 
     def status_callback(self, msg):
         if msg.data:
