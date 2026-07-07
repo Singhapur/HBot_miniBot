@@ -10,7 +10,7 @@ def main():
 
     # 1. MediaPipe Pose Configuration and Initialization (Tasks API)
     # Using the exact path specified in your ROS2 code
-    model_path = "/home/hp/ros2_tfg/models/pose_landmarker_full.task"
+    model_path = "/home/hp/ros2_tfg/IA_models/pose_landmarker_full.task"
     
     base_options = python.BaseOptions(model_asset_path=model_path)
     PoseLandmarker = mp.tasks.vision.PoseLandmarker
