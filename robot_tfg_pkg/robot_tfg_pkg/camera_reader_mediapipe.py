@@ -24,7 +24,7 @@ class CameraReader(Node):
         self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
         
         # 3. MediaPipe configuration
-        models_path = "/home/hp/ros2_tfg/models/"
+        models_path = "/home/hp/ros2_tfg/IA_models/"
 
         # 4. Create service for follow a person
         self.srv = self.create_service(Trigger, '/trigger_follow', self.trigger_scan_callback)
