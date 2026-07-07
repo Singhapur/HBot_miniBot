@@ -1,11 +1,7 @@
 #!/bin/bash
 
-# Launch the robot launcher
-# gnome-terminal -- bash -c "ros2 launch robot_tfg_pkg robot.launch.py; exec bash"
-
-#sleep 3
 # Launch the camera package
-gnome-terminal -- bash -c "python3 src/robot_tfg_pkg/robot_tfg_pkg/camera_reader.py; exec bash"
+gnome-terminal -- bash -c "python3 src/robot_tfg_pkg/robot_tfg_pkg/camera_reader_yolo.py; exec bash"
 
 sleep 2
 
