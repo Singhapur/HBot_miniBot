@@ -2,67 +2,72 @@
 #include <Servo.h>
 #include <EnableInterrupt.h>
 
-// --- PROTOCOLO DE COMUNICACIÓN BINARIA ---
+// --- BINARY COMMUNICATION PROTOCOL ---
 #define START_BYTE 0xAA
 #define END_BYTE   0x55
 #define ID_ENCODERS 0x02
 #define ID_CMD_MOTOR_SERVO 0x10
 
-// --- CONFIGURACIÓN MOTORES DC ---
+// --- DC MOTOR CONFIGURATION ---
 AF_DCMotor M1(1); // Front left
 AF_DCMotor M2(2); // Front right
-AF_DCMotor M3(3); // Back right
-AF_DCMotor M4(4); // Back left
-// --- CONFIGURACIÓN DE LOS 2 SERVOS ---
-Servo miServoCamara;
-Servo miServoLidar;
+AF_DCMotor M3(3); // Rear right
+AF_DCMotor M4(4); // Rear left
 
-// --- ESTADOS DEL ROBOT ---
-int pwm_izq = 0; int dir_izq = RELEASE;
-int pwm_der = 0; int dir_der = RELEASE;
-int angulo_camara = 90;
-int angulo_lidar = 90;
-int motor_watchdog = 0; // Perro guardián
+// --- TWO SERVO CONFIGURATION ---
+Servo cameraServo;
+Servo lidarServo;
+
+// --- ROBOT STATES ---
+int left_pwm = 0;
+int left_dir = RELEASE;
+int right_pwm = 0;
+int right_dir = RELEASE;
+int camera_angle = 90;
+int lidar_angle = 90;
+int motor_watchdog = 0; // Watchdog timer
 
 // --- ENCODERS ---
-const byte pinEncFI = A0;
-const byte pinEncFD = A1;
-const byte pinEncTI = A2;
-const byte pinEncTD = A3;
+const byte pinEncFL = A0;
+const byte pinEncFR = A1;
+const byte pinEncRL = A2;
+const byte pinEncRR = A3;
 
-// Usamos uint8_t porque enviamos la diferencia (delta) cada 50ms
-volatile uint8_t ticks_FI = 0;
-volatile uint8_t ticks_FD = 0;
-volatile uint8_t ticks_TI = 0;
-volatile uint8_t ticks_TD = 0;
+// We use uint8_t because we send the encoder delta every 50 ms
+volatile uint8_t ticks_FL = 0;
+volatile uint8_t ticks_FR = 0;
+volatile uint8_t ticks_RL = 0;
+volatile uint8_t ticks_RR = 0;
 
-uint8_t buffer_encoders[4];
+uint8_t encoder_buffer[4];
 unsigned long last_loop_time = 0;
 
-// --- INTERRUPCIONES (PCINT) ---
-void contarFI() { ticks_FI++; }
-void contarFD() { ticks_FD++; }
-void contarTI() { ticks_TI++; }
-void contarTD() { ticks_TD++; }
+// --- INTERRUPT ROUTINES (PCINT) ---
+void countFL() { ticks_FL++; }
+void countFR() { ticks_FR++; }
+void countRL() { ticks_RL++; }
+void countRR() { ticks_RR++; }
 
 // ==========================================
-// FUNCIÓN PARA ENVIAR BINARIO
+// FUNCTION TO SEND BINARY DATA
 // ==========================================
 void sendMessage(uint8_t id, uint8_t* data, uint8_t len) {
   Serial.write(START_BYTE);
   Serial.write(id);
   Serial.write(len);
-  uint8_t checksum = id ^ len; 
+
+  uint8_t checksum = id ^ len;
   for (uint8_t i = 0; i < len; i++) {
     Serial.write(data[i]);
-    checksum ^= data[i]; 
+    checksum ^= data[i];
   }
+
   Serial.write(checksum);
   Serial.write(END_BYTE);
 }
 
 // ==========================================
-// MÁQUINA DE ESTADOS PARA RECIBIR BINARIO
+// STATE MACHINE TO RECEIVE BINARY DATA
 // ==========================================
 void receiveMessage() {
   static enum { WAIT_START, READ_ID, READ_LEN, READ_DATA, READ_CHK, WAIT_END } state = WAIT_START;
@@ -72,43 +77,66 @@ void receiveMessage() {
 
   while (Serial.available()) {
     uint8_t byte_in = Serial.read();
+
     switch (state) {
       case WAIT_START:
         if (byte_in == START_BYTE) state = READ_ID;
         break;
+
       case READ_ID:
-        id = byte_in; checksum = id; state = READ_LEN;
+        id = byte_in;
+        checksum = id;
+        state = READ_LEN;
         break;
+
       case READ_LEN:
-        len = byte_in; checksum ^= len; idx = 0;
-        if(len > 10) state = WAIT_START; 
-        else state = READ_DATA;
+        len = byte_in;
+        checksum ^= len;
+        idx = 0;
+
+        if (len > 10)
+          state = WAIT_START;
+        else
+          state = READ_DATA;
         break;
+
       case READ_DATA:
-        buffer[idx++] = byte_in; checksum ^= byte_in;
-        if (idx >= len) state = READ_CHK;
+        buffer[idx++] = byte_in;
+        checksum ^= byte_in;
+
+        if (idx >= len)
+          state = READ_CHK;
         break;
+
       case READ_CHK:
-        if (byte_in == checksum) state = WAIT_END;
-        else state = WAIT_START; 
+        if (byte_in == checksum)
+          state = WAIT_END;
+        else
+          state = WAIT_START;
         break;
+
       case WAIT_END:
         if (byte_in == END_BYTE) {
-          // Si es un comando de movimiento y trae 6 DATOS (MotorI, PwmI, MotorD, PwmD, Camara, Lidar)
+          // If this is a motion command containing 6 data bytes
+          // (LeftDir, LeftPWM, RightDir, RightPWM, Camera, LiDAR)
           if (id == ID_CMD_MOTOR_SERVO && len == 6) {
-            
-            dir_izq = (buffer[0] == 0) ? BACKWARD : (buffer[0] == 1 ? FORWARD : RELEASE);
-            pwm_izq = buffer[1];
-            
-            dir_der = (buffer[2] == 0) ? BACKWARD : (buffer[2] == 1 ? FORWARD : RELEASE);
-            pwm_der = buffer[3];
-            
-            angulo_camara = buffer[4];
-            angulo_lidar = buffer[5];
-            
-            motor_watchdog = 10; // Reiniciamos el perro guardián (500ms)
+
+            left_dir = (buffer[0] == 0) ? BACKWARD :
+                       (buffer[0] == 1) ? FORWARD : RELEASE;
+            left_pwm = buffer[1];
+
+            right_dir = (buffer[2] == 0) ? BACKWARD :
+                        (buffer[2] == 1) ? FORWARD : RELEASE;
+            right_pwm = buffer[3];
+
+            camera_angle = buffer[4];
+            lidar_angle = buffer[5];
+
+            // Reset the watchdog timer (500 ms)
+            motor_watchdog = 10;
           }
         }
+
         state = WAIT_START;
         break;
     }
@@ -116,69 +144,78 @@ void receiveMessage() {
 }
 
 // ==========================================
-// APLICAR LOS VALORES AL HARDWARE
+// APPLY VALUES TO THE HARDWARE
 // ==========================================
 void applyHardware() {
-  M1.run(dir_izq); M1.setSpeed(pwm_izq);
-  M4.run(dir_izq); M4.setSpeed(pwm_izq);
-  
-  M2.run(dir_der); M2.setSpeed(pwm_der);
-  M3.run(dir_der); M3.setSpeed(pwm_der);
-  
-  
-  miServoCamara.write(angulo_camara);
-  miServoLidar.write(angulo_lidar);
+  M1.run(left_dir);
+  M1.setSpeed(left_pwm);
+
+  M4.run(left_dir);
+  M4.setSpeed(left_pwm);
+
+  M2.run(right_dir);
+  M2.setSpeed(right_pwm);
+
+  M3.run(right_dir);
+  M3.setSpeed(right_pwm);
+
+  cameraServo.write(camera_angle);
+  lidarServo.write(lidar_angle);
 }
 
-// Código para Arduino
+// Arduino setup
 void setup() {
   Serial.begin(115200);
-  
-  miServoCamara.attach(10);
-  miServoCamara.write(angulo_camara);
-  
-  miServoLidar.attach(9);
-  miServoLidar.write(angulo_lidar);
 
-  pinMode(pinEncFI, INPUT_PULLUP); pinMode(pinEncFD, INPUT_PULLUP);
-  pinMode(pinEncTI, INPUT_PULLUP); pinMode(pinEncTD, INPUT_PULLUP);
+  cameraServo.attach(10);
+  cameraServo.write(camera_angle);
 
-  enableInterrupt(pinEncFI, contarFI, RISING);
-  enableInterrupt(pinEncFD, contarFD, RISING);
-  enableInterrupt(pinEncTI, contarTI, RISING);
-  enableInterrupt(pinEncTD, contarTD, RISING);
+  lidarServo.attach(9);
+  lidarServo.write(lidar_angle);
+
+  pinMode(pinEncFL, INPUT_PULLUP);
+  pinMode(pinEncFR, INPUT_PULLUP);
+  pinMode(pinEncRL, INPUT_PULLUP);
+  pinMode(pinEncRR, INPUT_PULLUP);
+
+  enableInterrupt(pinEncFL, countFL, RISING);
+  enableInterrupt(pinEncFR, countFR, RISING);
+  enableInterrupt(pinEncRL, countRL, RISING);
+  enableInterrupt(pinEncRR, countRR, RISING);
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // 1. ESCUCHAR A LA RASPBERRY SIN BLOQUEOS
+  // LISTEN TO THE RASPBERRY PI WITHOUT BLOCKING
   receiveMessage();
 
-  // 2. EJECUTAR ACCIONES CADA 50ms
+  // EXECUTE TASKS EVERY 50 ms
   if (now - last_loop_time >= 50) {
     last_loop_time = now;
 
-    // Recoger encoders pausando interrupciones un instante
+    // Read encoder values while briefly disabling interrupts
     noInterrupts();
-    buffer_encoders[0] = ticks_FI; ticks_FI = 0;
-    buffer_encoders[1] = ticks_FD; ticks_FD = 0;
-    buffer_encoders[2] = ticks_TI; ticks_TI = 0;
-    buffer_encoders[3] = ticks_TD; ticks_TD = 0;
+    encoder_buffer[0] = ticks_FL; ticks_FL = 0;
+    encoder_buffer[1] = ticks_FR; ticks_FR = 0;
+    encoder_buffer[2] = ticks_RL; ticks_RL = 0;
+    encoder_buffer[3] = ticks_RR; ticks_RR = 0;
     interrupts();
 
-    // Enviar odometría
-    sendMessage(ID_ENCODERS, buffer_encoders, 4);
+    // Send odometry data
+    sendMessage(ID_ENCODERS, encoder_buffer, 4);
 
     // Watchdog
     if (motor_watchdog > 0) {
       motor_watchdog--;
     } else {
-      dir_izq = RELEASE; pwm_izq = 0;
-      dir_der = RELEASE; pwm_der = 0;
+      left_dir = RELEASE;
+      left_pwm = 0;
+      right_dir = RELEASE;
+      right_pwm = 0;
     }
 
-    // Actualizar motores y servos
+    // Update motors and servos
     applyHardware();
   }
 }
