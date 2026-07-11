@@ -59,7 +59,7 @@ class ControllerNode(Node):
         # Timer to send PWM commands constantly
         self.timer = self.create_timer(0.1, self.publish_pwm)
         
-        # PD Controller parameters
+        # PI Controller parameters
         self.kp = 4.5
         self.ki = 1.0
 
@@ -67,7 +67,7 @@ class ControllerNode(Node):
         self.MIN_PWM_STRAIGHT = 110
         self.MIN_PWM_TURN = 140
         
-        self.get_logger().info('Trajectory PID Controller Started')
+        self.get_logger().info('Trajectory PI Controller Started')
         
     def distance_callback(self, msg):
         self.current_distance = msg.range
@@ -89,7 +89,7 @@ class ControllerNode(Node):
         # We could use odometry data for additional control or state estimation if needed
         real_w = msg.twist.twist.angular.z
 
-        # Apply PID if going in a straight line
+        # Apply PI if going in a straight line
         if self.straight_line_mode:
             
             error = -real_w * 10.0 
